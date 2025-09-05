@@ -57,7 +57,7 @@ export const predictions = pgTable("predictions", {
   expectedGoalsHome: decimal("expected_goals_home", { precision: 4, scale: 2 }),
   expectedGoalsAway: decimal("expected_goals_away", { precision: 4, scale: 2 }),
   bothTeamsScore: decimal("both_teams_score", { precision: 5, scale: 2 }),
-  over25Goals: decimal("over_25_goals", { precision: 5, scale = 2 }),
+  over25Goals: decimal("over_25_goals", { precision: 5, scale: 2 }),
   confidence: decimal("confidence", { precision: 5, scale: 2 }),
   createdAt: timestamp("created_at").default(sql`now()`),
 });
