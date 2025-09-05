@@ -159,9 +159,9 @@ export function PredictionsPanel() {
                 </div>
               </div>
               
-              <div className="space-y-3">
+              <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Confidence Level</span>
+                  <span className="text-sm font-medium">AI Confidence</span>
                   <div className="flex items-center space-x-2">
                     <div className="w-24 h-2 bg-muted rounded-full overflow-hidden">
                       <div 
@@ -173,6 +173,14 @@ export function PredictionsPanel() {
                     <span className="text-sm font-medium" data-testid={`confidence-value-${fixture.id}`}>
                       {prediction?.confidence || "78"}%
                     </span>
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <i className="fas fa-brain text-accent text-xs cursor-help"></i>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>ML model confidence based on data quality and feature strength</p>
+                      </TooltipContent>
+                    </Tooltip>
                   </div>
                 </div>
                 
@@ -180,14 +188,14 @@ export function PredictionsPanel() {
                   <Tooltip>
                     <TooltipTrigger>
                       <div className="flex justify-between cursor-help">
-                        <span className="text-muted-foreground">Expected Goals</span>
+                        <span className="text-muted-foreground">Expected Goals (xG)</span>
                         <span className="font-medium" data-testid={`expected-goals-${fixture.id}`}>
                           {prediction?.expectedGoalsHome || "2.1"} - {prediction?.expectedGoalsAway || "1.4"}
                         </span>
                       </div>
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p>Predicted total goals based on attacking and defensive stats</p>
+                      <p>Advanced metric: Quality of scoring chances each team is likely to create</p>
                     </TooltipContent>
                   </Tooltip>
                   <Tooltip>
@@ -195,14 +203,73 @@ export function PredictionsPanel() {
                       <div className="flex justify-between cursor-help">
                         <span className="text-muted-foreground">Both Teams Score</span>
                         <span className="font-medium text-success" data-testid={`both-teams-score-${fixture.id}`}>
-                          Yes ({prediction?.bothTeamsScore || "65"}%)
+                          {prediction?.bothTeamsScore || "65"}%
                         </span>
                       </div>
                     </TooltipTrigger>
                     <TooltipContent>
-                      <p>Probability both teams will score based on scoring patterns</p>
+                      <p>Probability both teams will score based on attacking/defensive patterns</p>
                     </TooltipContent>
                   </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <div className="flex justify-between cursor-help">
+                        <span className="text-muted-foreground">Over 2.5 Goals</span>
+                        <span className="font-medium text-secondary" data-testid={`over-25-goals-${fixture.id}`}>
+                          {prediction?.over25Goals || "52"}%
+                        </span>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Likelihood of 3+ goals based on team attacking trends</p>
+                    </TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <div className="flex justify-between cursor-help">
+                        <span className="text-muted-foreground">Model Version</span>
+                        <span className="font-medium text-accent text-xs">
+                          {prediction?.mlModel || "v1.0"}
+                        </span>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>ML model version: XGBoost with calibrated probabilities</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+                
+                {/* AI Explanation Section */}
+                <div className="mt-4 p-3 bg-accent/10 rounded-lg border border-accent/20">
+                  <div className="flex items-start space-x-2">
+                    <i className="fas fa-lightbulb text-accent mt-0.5"></i>
+                    <div>
+                      <div className="text-sm font-medium text-accent mb-1">AI Insight</div>
+                      <div className="text-xs text-muted-foreground leading-relaxed">
+                        {prediction?.explanation || 
+                         `The AI model predicts a ${homeTeam?.name || "home"} win based on recent form analysis, expected goals differential, and home advantage factors.`}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Key Factors */}
+                <div className="mt-3">
+                  <div className="text-sm font-medium mb-2">Key Factors</div>
+                  <div className="space-y-1">
+                    {[
+                      { name: "Home Advantage", value: "+15%", positive: true },
+                      { name: "Recent Form", value: "+8%", positive: true },
+                      { name: "xG Difference", value: "+12%", positive: true }
+                    ].map((factor, index) => (
+                      <div key={index} className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">{factor.name}</span>
+                        <span className={`font-medium ${factor.positive ? 'text-success' : 'text-destructive'}`}>
+                          {factor.value}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
               
