@@ -700,6 +700,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const teams = sampleTeams[leagueId as keyof typeof sampleTeams] || sampleTeams[39];
   console.log(`Seeding ${teams.length} sample teams for league ${leagueId}`);
 
+  // First, ensure league exists
+  await storage.updateLeague({
+    id: leagueId,
+    name: leagueId === 39 ? 'Premier League' : 'La Liga',
+    country: leagueId === 39 ? 'England' : 'Spain',
+    logo: null,
+    flag: null,
+    season: 2023,
+    type: 'League'
+  });
+
   // Create sample standings
   const standingsData = teams.map((team, index) => ({
     id: `${leagueId}-${team.id}`,
@@ -762,6 +773,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         if (needsFallback) {
           console.log(`\u26a0\ufe0f Using sample data for ${league.name} (ID: ${league.id})`);
+          
+          // First, ensure league exists
+          await storage.updateLeague({
+            id: league.id,
+            name: league.name,
+            country: league.id === 39 ? 'England' : 'Spain',
+            logo: null,
+            flag: null,
+            season: 2023,
+            type: 'League'
+          });
           
           // Create sample standings
           const standingsData = league.teams.map((team, index) => ({
