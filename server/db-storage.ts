@@ -188,7 +188,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateTeamStats(stats: TeamStats): Promise<TeamStats> {
-    const existing = await this.getTeamStats(stats.teamId, stats.leagueId);
+    const existing = await this.getTeamStats(stats.teamId, stats.leagueId ?? undefined);
     
     if (existing) {
       const updated = await db.update(teamStats)
