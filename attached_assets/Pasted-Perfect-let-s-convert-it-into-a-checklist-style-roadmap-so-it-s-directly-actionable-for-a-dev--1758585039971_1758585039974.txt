@@ -1,0 +1,56 @@
+Perfect — let’s convert it into a **checklist-style roadmap** so it’s directly actionable for a dev team or an AI assistant.
+
+---
+
+# ✅ SabiScore Transformation Roadmap
+
+### 🎯 Mission
+
+Transform SabiScore into a **production-grade, prediction-optimized, and visually captivating betting intelligence platform**.
+Goals: **maximize predictive accuracy**, **optimize performance at scale**, and **deliver insights with clarity and impact**.
+
+---
+
+## 🧠 1. Codebase Audit & Refactor
+
+* [ ] Run a **full-stack diagnostic scan** (frontend, backend, scrapers, ML, infra).
+* [ ] Identify **integration gaps, hidden errors, performance bottlenecks**.
+* [ ] Apply **modular, single-responsibility architecture** (logic, rendering, data layers).
+* [ ] Standardize **formatting, naming conventions, testing boundaries**.
+* [ ] Replace **legacy workflows** with **reactive, scalable patterns** for high-load reliability.
+
+---
+
+## 📡 2. Scraping & Data Expansion
+
+* [ ] Build resilient scrapers with **Playwright/Puppeteer**, **BullMQ scheduling**, and **rotating proxies**.
+* [ ] Integrate feeds from **FlashScore, Understat, WhoScored, Bet365, etc.**
+* [ ] Collect **historical datasets** (form, xG, injuries, odds history).
+* [ ] Normalize, clean, and **optimize pipelines** for ML + analytics.
+
+---
+
+## 📈 3. ML & Real-Time API Integration
+
+* [ ] Deploy **FastAPI ML microservices** in `/ml`.
+* [ ] Ingest **real-time + historical data** into probabilistic models.
+* [ ] Generate **dynamic value-bet estimations**.
+* [ ] Deliver predictions for **user-selected upcoming matches**.
+* [ ] Implement **WebSockets** (`match:update`, `alert:valueBet`) with **failover handling**.
+
+---
+
+## 🎨 4. UX, Features & Visual Design
+
+* [ ] Refine **React + Tailwind UI** for sleek, responsive design.
+* [ ] Add **interactive visualizations** (odds shifts, animated trends, match insights).
+* [ ] Blend **analytics + entertainment** into a **bettor-friendly flow**.
+* [ ] Ensure **material-inspired + glassmorphic design consistency**.
+
+---
+
+✅ **Output:** A **production-ready betting intelligence platform** that merges **real-time analytics, ML-driven predictions, and immersive UI/UX** for football bettors.
+
+---
+
+Would you like me to **layer in priority levels** (e.g., Phase 1 = critical stability, Phase 2 = scrapers, Phase 3 = ML, Phase 4 = UX polish) so it becomes a **phased execution plan**?
