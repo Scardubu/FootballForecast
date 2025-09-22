@@ -29,7 +29,8 @@ export function FixtureSelector({ onFixtureSelect, selectedFixture }: FixtureSel
   ];
 
   const { data: fixtures, isLoading } = useQuery({
-    queryKey: ["/api/fixtures", selectedLeague, dateFilter],
+    queryKey: [`/api/fixtures?league=${selectedLeague}`],
+    enabled: !!selectedLeague,
     select: (data: Fixture[]) => {
       let filtered = data;
       

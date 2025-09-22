@@ -257,18 +257,36 @@ export function PredictionsPanel() {
                 <div className="mt-3">
                   <div className="text-sm font-medium mb-2">Key Factors</div>
                   <div className="space-y-1">
-                    {[
-                      { name: "Home Advantage", value: "+15%", positive: true },
-                      { name: "Recent Form", value: "+8%", positive: true },
-                      { name: "xG Difference", value: "+12%", positive: true }
-                    ].map((factor, index) => (
-                      <div key={index} className="flex items-center justify-between text-xs">
-                        <span className="text-muted-foreground">{factor.name}</span>
-                        <span className={`font-medium ${factor.positive ? 'text-success' : 'text-destructive'}`}>
-                          {factor.value}
-                        </span>
-                      </div>
-                    ))}
+                    {(() => {
+                      try {
+                        const factors = prediction?.keyFactors ? JSON.parse(prediction.keyFactors) : [];
+                        if (factors.length > 0) {
+                          return factors.slice(0, 3).map((factor: any, index: number) => (
+                            <div key={index} className="flex items-center justify-between text-xs">
+                              <span className="text-muted-foreground">{factor.name}</span>
+                              <span className={`font-medium ${factor.impact === 'Positive' ? 'text-success' : 'text-destructive'}`}>
+                                {factor.impact === 'Positive' ? '+' : ''}{(factor.value * 100).toFixed(0)}%
+                              </span>
+                            </div>
+                          ));
+                        }
+                      } catch (e) {
+                        // Fallback to default factors
+                      }
+                      
+                      return [
+                        { name: "Home Advantage", value: "+15%", positive: true },
+                        { name: "Recent Form", value: "+8%", positive: true },
+                        { name: "xG Difference", value: "+12%", positive: true }
+                      ].map((factor, index) => (
+                        <div key={index} className="flex items-center justify-between text-xs">
+                          <span className="text-muted-foreground">{factor.name}</span>
+                          <span className={`font-medium ${factor.positive ? 'text-success' : 'text-destructive'}`}>
+                            {factor.value}
+                          </span>
+                        </div>
+                      ));
+                    })()}
                   </div>
                 </div>
               </div>
