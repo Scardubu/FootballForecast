@@ -758,9 +758,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ];
 
       for (const league of leagues) {
-        try {
-          await updateStandings(league.id, 2023);
-        } catch (error) {
+        const needsFallback = await updateStandings(league.id, 2023);
+        
+        if (needsFallback) {
           console.log(`\u26a0\ufe0f Using sample data for ${league.name} (ID: ${league.id})`);
           
           // Create sample standings
