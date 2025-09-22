@@ -646,16 +646,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Initialize with some default leagues
   setTimeout(async () => {
     try {
+      console.log('Initializing data...');
       // Premier League
-      await updateStandings(39, 2024);
+      await updateStandings(39, 2023);
       // La Liga
-      await updateStandings(140, 2024);
+      await updateStandings(140, 2023);
       // Serie A
-      await updateStandings(135, 2024);
+      await updateStandings(135, 2023);
       // Bundesliga
-      await updateStandings(78, 2024);
+      await updateStandings(78, 2023);
       // Ligue 1
-      await updateStandings(61, 2024);
+      await updateStandings(61, 2023);
+      console.log('Data initialization completed successfully');
     } catch (error) {
       console.error('Error initializing data:', error);
     }
