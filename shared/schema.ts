@@ -159,3 +159,79 @@ export type Standing = typeof standings.$inferSelect;
 export type TeamStats = typeof teamStats.$inferSelect;
 export type ScrapedData = typeof scrapedData.$inferSelect;
 export type InsertScrapedData = z.infer<typeof insertScrapedDataSchema>;
+
+// ML Service DTOs - matching FastAPI service models
+export const mlPredictionRequestSchema = z.object({
+  fixture_id: z.number().optional(),
+  home_team_id: z.number(),
+  away_team_id: z.number(),
+  home_team_name: z.string().optional(),
+  away_team_name: z.string().optional(),
+});
+
+export const mlKeyFeatureSchema = z.object({
+  name: z.string(),
+  value: z.number(),
+  impact: z.enum(["Positive", "Negative", "Neutral"]),
+  description: z.string().optional(),
+});
+
+export const mlPredictionResponseSchema = z.object({
+  fixture_id: z.number().optional(),
+  predicted_outcome: z.string(),
+  probabilities: z.object({
+    home: z.number(),
+    draw: z.number(),
+    away: z.number(),
+  }),
+  confidence: z.number(),
+  expected_goals: z.object({
+    home: z.number(),
+    away: z.number(),
+  }),
+  additional_markets: z.object({
+    both_teams_score: z.number(),
+    over_2_5_goals: z.number(),
+    under_2_5_goals: z.number(),
+  }),
+  key_features: z.array(mlKeyFeatureSchema),
+  model_version: z.string(),
+  explanation: z.string().optional(),
+});
+
+export const mlTrainingRequestSchema = z.object({
+  start_date: z.string(),
+  end_date: z.string(),
+  retrain: z.boolean().default(true),
+});
+
+export const mlHealthResponseSchema = z.object({
+  status: z.enum(["healthy", "unhealthy", "degraded"]),
+  service: z.string(),
+  version: z.string(),
+  uptime: z.number().optional(),
+  model_loaded: z.boolean(),
+  last_prediction: z.string().optional(),
+  error_message: z.string().optional(),
+});
+
+export const mlBatchPredictionRequestSchema = z.object({
+  requests: z.array(mlPredictionRequestSchema),
+});
+
+export const mlModelStatusResponseSchema = z.object({
+  model_loaded: z.boolean(),
+  model_version: z.string(),
+  training_date: z.string().optional(),
+  accuracy_metrics: z.record(z.number()).optional(),
+  feature_count: z.number().optional(),
+});
+
+// ML Service Types
+export type MLPredictionRequest = z.infer<typeof mlPredictionRequestSchema>;
+export type MLPredictionResponse = z.infer<typeof mlPredictionResponseSchema>;
+export type MLTrainingRequest = z.infer<typeof mlTrainingRequestSchema>;
+export type MLHealthResponse = z.infer<typeof mlHealthResponseSchema>;
+export type MLBatchPredictionRequest = z.infer<typeof mlBatchPredictionRequestSchema>;
+export type MLModelStatusResponse = z.infer<typeof mlModelStatusResponseSchema>;
+export type MLKeyFeature = z.infer<typeof mlKeyFeatureSchema>;

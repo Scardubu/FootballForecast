@@ -19,7 +19,8 @@ import {
   scrapedDataRouter,
   schedulerRouter,
   apiFootballRouter,
-  authRouter
+  authRouter,
+  mlRouter
 } from "./routers";
 import cookieParser from 'cookie-parser';
 
@@ -56,6 +57,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/scraped-data', scrapedDataRouter);
   app.use('/api/scheduler', schedulerRouter);
   app.use('/api/football', apiFootballRouter);
+  app.use('/api/ml', mlRouter);
 
   // Initialize with some default leagues
   setTimeout(async () => {
