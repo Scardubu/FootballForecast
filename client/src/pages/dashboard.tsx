@@ -10,7 +10,7 @@ import { ScrapedInsights } from "@/components/scraped-insights";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import type { Fixture } from "@/lib/types";
+import type { Fixture } from "@shared/schema";
 
 export default function Dashboard() {
   const [selectedFixture, setSelectedFixture] = useState<Fixture | null>(null);
@@ -116,7 +116,7 @@ export default function Dashboard() {
           <TabsContent value="predictions" className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               <FixtureSelector 
-                onFixtureSelect={setSelectedFixture}
+                onFixtureSelect={(fixture) => setSelectedFixture(fixture)}
                 selectedFixture={selectedFixture}
               />
               
