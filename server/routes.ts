@@ -136,7 +136,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }, 1000);
 
   // Apply centralized error handling middleware after all routes
-  app.use(notFoundHandler); // Handle 404s with structured Problem+JSON response
+  // Handle 404s for API routes specifically (before SPA fallbacks)
+  app.use('/api', notFoundHandler);
   app.use(errorHandler); // Centralized error handling with proper logging and Problem+JSON format
   
   logger.info('All routes and middleware configured successfully with centralized error handling');
