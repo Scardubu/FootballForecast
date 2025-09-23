@@ -80,3 +80,15 @@ export interface TeamStats {
   form?: string | null;
   lastUpdated: Date;
 }
+
+export interface ScrapedData {
+  id: string;
+  source: string;
+  dataType: "match_stats" | "team_ratings" | "match_insights" | "team_form" | "xg_data";
+  fixtureId?: number | null;
+  teamId?: number | null;
+  data: Record<string, unknown>;
+  confidence: number;
+  scrapedAt: Date;
+  createdAt: Date;
+}

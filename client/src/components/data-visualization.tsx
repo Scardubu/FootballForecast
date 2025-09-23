@@ -1,6 +1,10 @@
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useQuery } from "@tanstack/react-query";
+import { AlertCircle, TrendingUp, Target, BarChart3 } from "lucide-react";
+import type { ScrapedData } from "@/lib/types";
 
 export function DataVisualization() {
   return (

@@ -6,6 +6,7 @@ import { LeagueStandings } from "@/components/league-standings";
 import { TeamPerformance, QuickStats } from "@/components/team-performance";
 import { DataVisualization } from "@/components/data-visualization";
 import { FixtureSelector } from "@/components/fixture-selector";
+import { ScrapedInsights } from "@/components/scraped-insights";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -266,103 +267,7 @@ export default function Dashboard() {
 
           {/* Insights Tab */}
           <TabsContent value="insights" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <i className="fas fa-trophy text-secondary"></i>
-                    <span>Top Performer</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-center space-y-2">
-                    <div className="text-lg font-bold">Manchester City</div>
-                    <div className="text-sm text-muted-foreground">8 wins in a row</div>
-                    <div className="text-2xl font-bold text-success">94.2</div>
-                    <div className="text-xs text-muted-foreground">Performance Rating</div>
-                  </div>
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <i className="fas fa-chart-trending-up text-accent"></i>
-                    <span>Rising Team</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-center space-y-2">
-                    <div className="text-lg font-bold">Brighton</div>
-                    <div className="text-sm text-muted-foreground">+15% improvement</div>
-                    <div className="text-2xl font-bold text-accent">↗️</div>
-                    <div className="text-xs text-muted-foreground">Last 5 matches</div>
-                  </div>
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <i className="fas fa-bullseye text-primary"></i>
-                    <span>Best Bet</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-center space-y-2">
-                    <div className="text-lg font-bold">Arsenal vs Chelsea</div>
-                    <div className="text-sm text-muted-foreground">Over 2.5 Goals</div>
-                    <div className="text-2xl font-bold text-primary">87%</div>
-                    <div className="text-xs text-muted-foreground">Confidence</div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-            
-            <Card>
-              <CardHeader>
-                <CardTitle>AI Model Insights</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="p-4 bg-accent/10 rounded-lg border border-accent/20">
-                    <div className="flex items-start space-x-3">
-                      <i className="fas fa-lightbulb text-accent mt-1"></i>
-                      <div>
-                        <div className="font-medium text-accent mb-1">Key Pattern Discovered</div>
-                        <div className="text-sm text-muted-foreground">
-                          Teams with 70%+ home possession in their last 3 matches have an 84% chance of scoring first in their next home game.
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="p-4 bg-success/10 rounded-lg border border-success/20">
-                    <div className="flex items-start space-x-3">
-                      <i className="fas fa-chart-line text-success mt-1"></i>
-                      <div>
-                        <div className="font-medium text-success mb-1">Trend Alert</div>
-                        <div className="text-sm text-muted-foreground">
-                          Expected goals (xG) differential is the strongest predictor this season, with 91% correlation to match outcomes.
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="p-4 bg-secondary/10 rounded-lg border border-secondary/20">
-                    <div className="flex items-start space-x-3">
-                      <i className="fas fa-exclamation-triangle text-secondary mt-1"></i>
-                      <div>
-                        <div className="font-medium text-secondary mb-1">Anomaly Detected</div>
-                        <div className="text-sm text-muted-foreground">
-                          Home advantage effect has decreased by 12% compared to last season across the top 5 leagues.
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <ScrapedInsights />
           </TabsContent>
         </Tabs>
       </main>
