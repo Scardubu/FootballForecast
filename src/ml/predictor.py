@@ -292,7 +292,8 @@ class FootballPredictor:
             
             # Create synthetic training data for demonstration
             n_samples = 1000
-            X_train = np.random.rand(n_samples, len(self.feature_names))
+            feature_count = len(self.feature_names) if self.feature_names else 9
+            X_train = np.random.rand(n_samples, feature_count)
             
             # Generate realistic outcomes based on features
             y_train = []

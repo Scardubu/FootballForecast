@@ -142,12 +142,12 @@ export class ApiFootballClient {
         }
         // Handle array format: { errors: ["error_message"] }
         else if (Array.isArray(data.errors) && data.errors.length > 0) {
-          const errorMsg = data.errors[0];
-          if (typeof errorMsg === 'string') {
-            if (errorMsg.includes('requests') || errorMsg.includes('limit')) {
-              throw new Error(`API_LIMIT_REACHED: ${errorMsg}`);
+          const firstError = data.errors[0];
+          if (firstError && typeof firstError === 'string') {
+            if (firstError.includes('requests') || firstError.includes('limit')) {
+              throw new Error(`API_LIMIT_REACHED: ${firstError}`);
             }
-            throw new Error(`API_ERROR: ${errorMsg}`);
+            throw new Error(`API_ERROR: ${firstError}`);
           }
         }
       }

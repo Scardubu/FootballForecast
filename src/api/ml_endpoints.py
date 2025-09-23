@@ -314,7 +314,7 @@ async def scrape_team_data_background(team_ids: List[int], team_names: List[str]
         
         # Scrape team form data
         for team_id, team_name in zip(team_ids, team_names):
-            form_data = scraper.scrape_team_form(team_id, team_name)
+            form_data = await scraper.scrape_team_form(team_id, team_name)
             if form_data:
                 await scraper.save_to_database(form_data)
                 print(f"Scraped form data for team {team_name}")
@@ -322,7 +322,7 @@ async def scrape_team_data_background(team_ids: List[int], team_names: List[str]
         # Scrape match data if fixture IDs provided
         for fixture_id in fixture_ids:
             if len(team_names) >= 2:
-                match_data = scraper.scrape_match_xg(fixture_id, team_names[0], team_names[1])
+                match_data = await scraper.scrape_match_xg(fixture_id, team_names[0], team_names[1])
                 if match_data:
                     await scraper.save_to_database(match_data)
                     print(f"Scraped match data for fixture {fixture_id}")
