@@ -2,6 +2,7 @@ import { Router } from "express";
 import { asyncHandler } from "../middleware";
 import { storage } from "../storage";
 import { z } from "zod";
+import { auth } from "../config";
 
 export const scrapedDataRouter = Router();
 
@@ -9,7 +10,7 @@ export const scrapedDataRouter = Router();
 scrapedDataRouter.post("/", asyncHandler(async (req, res) => {
   // Improved authentication check - support Bearer tokens  
   const authHeader = req.headers.authorization || req.headers['x-internal-token'];
-  const expectedToken = process.env.SCRAPER_AUTH_TOKEN;
+  const expectedToken = auth.scraperToken;
   
   if (!expectedToken) {
     return res.status(500).json({ error: "Server misconfiguration - auth token not set" });

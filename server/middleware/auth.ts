@@ -6,6 +6,7 @@ import type { Request, Response, NextFunction } from 'express';
 import logger from './logger';
 import { AppError } from './errorHandler';
 import { auth } from '../config';
+import { validateSession } from '../routers/auth';
 
 interface AuthenticatedRequest extends Request {
   user?: {
@@ -15,9 +16,27 @@ interface AuthenticatedRequest extends Request {
 }
 
 /**
- * Authentication middleware - validates Bearer tokens
+ * Authentication middleware - validates Bearer tokens OR session cookies
  */
 export function authenticateToken(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  // Try session authentication first (cookie-based)
+  if (validateSession(req)) {
+    req.user = {
+      id: 'session-user',
+      token: 'session'
+    };
+    
+    logger.debug({
+      requestId: req.id,
+      userId: req.user.id,
+      url: req.url,
+      authType: 'session'
+    }, 'Request authenticated via session');
+    
+    return next();
+  }
+  
+  // Fall back to Bearer token authentication (for API clients)
   const authHeader = req.headers.authorization;
   const token = authHeader && authHeader.split(' ')[1]; // Extract token from 'Bearer TOKEN'
 
@@ -26,10 +45,10 @@ export function authenticateToken(req: AuthenticatedRequest, res: Response, next
       requestId: req.id,
       ip: req.ip,
       url: req.url 
-    }, 'Missing or invalid Authorization header');
+    }, 'No valid authentication found (session or Bearer token)');
     
     return next(new AppError(
-      'Missing or invalid Authorization header. Expected format: Bearer <token>',
+      'Authentication required. Use session cookie or Bearer token.',
       401,
       'https://tools.ietf.org/html/rfc7235#section-3.1'
     ));
@@ -51,15 +70,16 @@ export function authenticateToken(req: AuthenticatedRequest, res: Response, next
 
   // Attach user info to request for downstream middleware
   req.user = {
-    id: 'api-user',
+    id: 'bearer-user',
     token: token
   };
 
   logger.debug({
     requestId: req.id,
     userId: req.user.id,
-    url: req.url
-  }, 'Request authenticated successfully');
+    url: req.url,
+    authType: 'bearer'
+  }, 'Request authenticated via Bearer token');
 
   next();
 }

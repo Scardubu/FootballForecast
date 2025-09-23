@@ -7,3 +7,5 @@ export { teamsRouter } from './teams';
 export { predictionsRouter } from './predictions';
 export { scrapedDataRouter } from './scraped-data';
 export { schedulerRouter } from './scheduler';
+export { apiFootballRouter } from './api-football';
+export { authRouter } from './auth';

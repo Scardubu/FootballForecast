@@ -17,8 +17,11 @@ import {
   teamsRouter,
   predictionsRouter,
   scrapedDataRouter,
-  schedulerRouter
+  schedulerRouter,
+  apiFootballRouter,
+  authRouter
 } from "./routers";
+import cookieParser from 'cookie-parser';
 
 // Data initialization utility functions moved to focused routers
 
@@ -28,16 +31,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Apply global middleware stack
   logger.info('Applying global middleware stack');
+  app.use(cookieParser()); // Parse cookies for session authentication
   app.use(httpLogger); // Structured request logging with request IDs
   app.use(generalRateLimit); // Rate limiting protection (100 req/15min per IP)
   
   // Mount health endpoints (no auth required) - must be before auth middleware
   app.use('/api', healthRouter);
 
-  // Apply optional authentication to protected API routes (health endpoints declared before this middleware)
+  // Mount auth endpoints (no auth required for creating sessions)
+  app.use('/api/auth', authRouter);
+
+  // Apply required authentication to protected API routes (health and auth endpoints declared before this middleware)
   app.use('/api', createAuthMiddleware({ 
-    required: false, 
-    skipPaths: ['/health', '/_client-status'] 
+    required: true, 
+    skipPaths: ['/health', '/_client-status', '/auth'] 
   }));
   
   // Mount focused routers for organized endpoint management
@@ -48,6 +55,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/predictions', predictionsRouter);
   app.use('/api/scraped-data', scrapedDataRouter);
   app.use('/api/scheduler', schedulerRouter);
+  app.use('/api/football', apiFootballRouter);
 
   // Initialize with some default leagues
   setTimeout(async () => {
@@ -87,7 +95,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
           type: 'League'
         });
         
-        // Create sample standings
+        // Store team data FIRST to avoid FK constraint violations
+        for (const team of league.teams) {
+          await storage.updateTeam({
+            id: team.id,
+            name: team.name,
+            logo: team.logo,
+            country: league.id === 39 ? 'England' : 'Spain',
+            national: false,
+            code: null,
+            founded: null
+          });
+        }
+        
+        // Create sample standings AFTER teams exist
         const standingsData = league.teams.map((team, index) => ({
           id: `${league.id}-${team.id}`,
           leagueId: league.id,
@@ -105,19 +126,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }));
 
         await storage.updateStandings(standingsData);
-        
-        // Store team data
-        for (const team of league.teams) {
-          await storage.updateTeam({
-            id: team.id,
-            name: team.name,
-            logo: team.logo,
-            country: league.id === 39 ? 'England' : 'Spain',
-            national: false,
-            code: null,
-            founded: null
-          });
-        }
         console.log(`✅ Sample data seeded for ${league.name}`);
       }
       
