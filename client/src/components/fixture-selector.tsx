@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useAuth } from "@/lib/auth-context";
 import type { Fixture, Team, League } from "@/lib/types";
 
 interface FixtureSelectorProps {
@@ -18,6 +19,7 @@ export function FixtureSelector({ onFixtureSelect, selectedFixture }: FixtureSel
   const [selectedLeague, setSelectedLeague] = useState("39"); // Premier League
   const [dateFilter, setDateFilter] = useState("upcoming");
   const [searchTerm, setSearchTerm] = useState("");
+  const { auth, isLoading: authLoading } = useAuth();
 
   const topLeagues = [
     { id: "39", name: "Premier League", country: "England", flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿" },
@@ -30,7 +32,7 @@ export function FixtureSelector({ onFixtureSelect, selectedFixture }: FixtureSel
 
   const { data: fixtures, isLoading } = useQuery({
     queryKey: [`/api/fixtures?league=${selectedLeague}`],
-    enabled: !!selectedLeague,
+    enabled: !!selectedLeague && !authLoading && !!auth?.authenticated,
     select: (data: Fixture[]) => {
       let filtered = data;
       
@@ -56,6 +58,7 @@ export function FixtureSelector({ onFixtureSelect, selectedFixture }: FixtureSel
 
   const { data: teams } = useQuery({
     queryKey: ["/api/teams"],
+    enabled: !authLoading && !!auth?.authenticated,
   });
 
   const getTeam = (teamId: number): Team | undefined => {
@@ -86,7 +89,7 @@ export function FixtureSelector({ onFixtureSelect, selectedFixture }: FixtureSel
     };
   };
 
-  if (isLoading) {
+  if (authLoading || isLoading) {
     return (
       <Card data-testid="fixture-selector">
         <CardHeader>

@@ -4,25 +4,29 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TeamDisplay } from "@/components/team-display";
+import { useAuth } from "@/lib/auth-context";
 import type { Standing, Team } from "@shared/schema";
 
 export function LeagueStandings() {
   const [selectedLeague] = useState(39); // Premier League
+  const { auth, isLoading: authLoading } = useAuth();
 
   const { data: standings, isLoading } = useQuery({
     queryKey: ["/api/standings", selectedLeague],
     select: (data: Standing[]) => data.slice(0, 5), // Show top 5
+    enabled: !authLoading && !!auth?.authenticated,
   });
 
   const { data: teams } = useQuery({
     queryKey: ["/api/teams"],
+    enabled: !authLoading && !!auth?.authenticated,
   });
 
   const getTeam = (teamId: number): Team | undefined => {
     return Array.isArray(teams) ? teams.find((team: Team) => team.id === teamId) : undefined;
   };
 
-  if (isLoading) {
+  if (authLoading || isLoading) {
     return (
       <Card>
         <CardContent className="p-6">

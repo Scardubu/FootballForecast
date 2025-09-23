@@ -3,20 +3,26 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useAuth } from "@/lib/auth-context";
 import type { Fixture, Team, Prediction } from "@/lib/types";
 
 export function PredictionsPanel() {
+  const { auth, isLoading: authLoading } = useAuth();
+  
   const { data: fixtures, isLoading: fixturesLoading } = useQuery({
     queryKey: ["/api/fixtures"],
     select: (data: Fixture[]) => data.filter(f => f.status === "NS" || f.status === "TBD").slice(0, 3),
+    enabled: !authLoading && !!auth?.authenticated,
   });
 
   const { data: teams } = useQuery({
     queryKey: ["/api/teams"],
+    enabled: !authLoading && !!auth?.authenticated,
   });
 
   const { data: predictions } = useQuery({
     queryKey: ["/api/predictions"],
+    enabled: !authLoading && !!auth?.authenticated,
   });
 
   const getTeam = (teamId: number): Team | undefined => {
@@ -27,7 +33,7 @@ export function PredictionsPanel() {
     return predictions?.find((pred: Prediction) => pred.fixtureId === fixtureId);
   };
 
-  if (fixturesLoading) {
+  if (authLoading || fixturesLoading) {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">

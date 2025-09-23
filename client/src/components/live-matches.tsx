@@ -2,16 +2,21 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAuth } from "@/lib/auth-context";
 import type { Fixture, Team } from "@/lib/types";
 
 export function LiveMatches() {
+  const { auth, isLoading: authLoading } = useAuth();
+  
   const { data: liveFixtures, isLoading } = useQuery({
     queryKey: ["/api/fixtures/live"],
     refetchInterval: 15000, // Refetch every 15 seconds
+    enabled: !authLoading && !!auth?.authenticated,
   });
 
   const { data: teams } = useQuery({
     queryKey: ["/api/teams"],
+    enabled: !authLoading && !!auth?.authenticated,
   });
 
   const getTeam = (teamId: number): Team | undefined => {
@@ -33,7 +38,7 @@ export function LiveMatches() {
     }
   };
 
-  if (isLoading) {
+  if (authLoading || isLoading) {
     return (
       <section className="mb-8">
         <div className="flex items-center justify-between mb-6">

@@ -69,6 +69,22 @@ function validateSessionToken(token: string, clientIdentifier: string): SessionP
 }
 
 /**
+ * Create client identifier based on environment
+ * In development: Only use User-Agent (more permissive for testing)
+ * In production: Use IP + User-Agent (more secure)
+ */
+function createClientIdentifier(req: any): string {
+  const userAgent = req.headers['user-agent'] || 'unknown';
+  
+  if (process.env.NODE_ENV === 'production') {
+    return `${req.ip}:${userAgent}`;
+  }
+  
+  // Development mode: Only bind to User-Agent for compatibility with testing tools
+  return userAgent;
+}
+
+/**
  * Issue a secure session cookie for API access
  */
 authRouter.post('/session', asyncHandler(async (req, res) => {
@@ -83,8 +99,8 @@ authRouter.post('/session', asyncHandler(async (req, res) => {
     });
   }
   
-  // Create client identifier from IP + User-Agent for basic binding
-  const clientId = `${req.ip}:${req.headers['user-agent'] || 'unknown'}`;
+  // Create client identifier based on environment
+  const clientId = createClientIdentifier(req);
   const sessionToken = createSessionToken(clientId);
   
   // Set secure HttpOnly cookie
@@ -110,7 +126,7 @@ export function validateSession(req: any): boolean {
   const sessionToken = req.cookies?.session;
   if (!sessionToken) return false;
   
-  const clientId = `${req.ip}:${req.headers['user-agent'] || 'unknown'}`;
+  const clientId = createClientIdentifier(req);
   const session = validateSessionToken(sessionToken, clientId);
   
   if (!session) return false;
@@ -141,8 +157,8 @@ authRouter.post('/dev-login', asyncHandler(async (req, res) => {
     });
   }
 
-  // Create client identifier from IP + User-Agent for basic binding
-  const clientId = `${req.ip}:${req.headers['user-agent'] || 'unknown'}`;
+  // Create client identifier based on environment
+  const clientId = createClientIdentifier(req);
   const sessionToken = createSessionToken(clientId);
   
   // Set secure HttpOnly cookie (use lax for development)
@@ -171,7 +187,7 @@ authRouter.get('/status', asyncHandler(async (req, res) => {
     return res.json({ authenticated: false });
   }
   
-  const clientId = `${req.ip}:${req.headers['user-agent'] || 'unknown'}`;
+  const clientId = createClientIdentifier(req);
   const session = validateSessionToken(sessionToken, clientId);
   
   if (!session) {

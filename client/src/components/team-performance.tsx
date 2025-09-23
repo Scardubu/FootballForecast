@@ -2,15 +2,20 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useAuth } from "@/lib/auth-context";
 import type { TeamStats, Team } from "@/lib/types";
 
 export function TeamPerformance() {
+  const { auth, isLoading: authLoading } = useAuth();
+  
   const { data: teamStats, isLoading } = useQuery({
     queryKey: ["/api/teams", 50, "stats"], // Manchester City example
+    enabled: !authLoading && !!auth?.authenticated,
   });
 
   const { data: teams } = useQuery({
     queryKey: ["/api/teams"],
+    enabled: !authLoading && !!auth?.authenticated,
   });
 
   const getTeam = (teamId: number): Team | undefined => {
@@ -26,7 +31,7 @@ export function TeamPerformance() {
     }
   };
 
-  if (isLoading) {
+  if (authLoading || isLoading) {
     return (
       <Card>
         <CardContent className="p-6">

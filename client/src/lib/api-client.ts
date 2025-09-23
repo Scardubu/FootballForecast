@@ -16,9 +16,9 @@ export interface APIFootballResponse<T> {
 }
 
 /**
- * Ensure valid session before making API calls
+ * Simple session check - returns true if authenticated, false if not
  */
-async function ensureSession(): Promise<void> {
+async function checkSession(): Promise<boolean> {
   try {
     const response = await fetch('/api/auth/status', {
       credentials: 'include' // Include session cookies
@@ -26,26 +26,21 @@ async function ensureSession(): Promise<void> {
     
     if (response.ok) {
       const status = await response.json();
-      if (status.authenticated) {
-        return; // Session is valid
-      }
+      return status.authenticated === true;
     }
     
-    // Session invalid or missing - redirect to authentication
-    throw new Error('Session expired or invalid. Please refresh the page.');
-    
+    return false;
   } catch (error) {
-    throw new Error('Unable to verify authentication status.');
+    console.warn('Session check failed:', error);
+    return false;
   }
 }
 
 /**
  * Make authenticated requests to our backend API Football proxy
+ * Now works with the AuthProvider system - relies on session cookies
  */
 async function apiRequest<T>(endpoint: string, options?: RequestInit): Promise<APIFootballResponse<T>> {
-  // Ensure valid session before making the request
-  await ensureSession();
-  
   const response = await fetch(`/api/football/${endpoint}`, {
     ...options,
     credentials: 'include', // Include session cookies
@@ -57,7 +52,7 @@ async function apiRequest<T>(endpoint: string, options?: RequestInit): Promise<A
   
   if (!response.ok) {
     if (response.status === 401) {
-      throw new Error('Authentication failed. Session may have expired.');
+      throw new Error('Authentication required. The AuthProvider should handle this automatically.');
     }
     throw new Error(`API error: ${response.status} ${response.statusText}`);
   }
