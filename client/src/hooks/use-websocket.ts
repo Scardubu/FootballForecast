@@ -46,6 +46,10 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
   } = options;
 
   const { auth } = useAuth();
+  
+  // Track auth state to trigger reconnect on changes
+  const authStateRef = useRef(auth?.authenticated);
+  const authUserRef = useRef(auth?.user?.id);
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -177,14 +181,9 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
           lastConnected: new Date() 
         }));
 
-        // Authenticate if user is logged in
-        if (auth?.authenticated) {
-          wsRef.current?.send(JSON.stringify({
-            type: 'auth',
-            data: { userId: auth.user?.id }
-          }));
-          setConnectionStats(prev => ({ ...prev, messagesSent: prev.messagesSent + 1 }));
-        }
+        // Authentication now handled automatically via secure handshake cookies
+        // No need to send explicit auth messages - server validates session on connect
+        console.log('🔐 WebSocket authentication handled via secure handshake');
 
         // Re-subscribe to all topics
         subscriptionsRef.current.forEach(topic => {
@@ -306,17 +305,20 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
     };
   }, []); // No dependencies - mount only
   
-  // Sync auth status without reconnecting
+  // Reconnect when auth state changes to refresh handshake authentication
   useEffect(() => {
-    if (auth?.authenticated && wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({
-        type: 'auth',
-        data: { userId: auth.user?.id }
-      }));
-      setConnectionStats(prev => ({ ...prev, messagesSent: prev.messagesSent + 1 }));
-      console.log('🔐 WebSocket auth synced for user:', auth.user?.id);
+    const authChanged = authStateRef.current !== auth?.authenticated || 
+                       authUserRef.current !== auth?.user?.id;
+    
+    if (authChanged && wsRef.current?.readyState === WebSocket.OPEN) {
+      console.log('🔄 Auth state changed, reconnecting WebSocket for fresh authentication');
+      disconnect();
+      setTimeout(() => connect(), 100); // Brief delay for clean reconnect
     }
-  }, [auth?.authenticated, auth?.user?.id]);
+    
+    authStateRef.current = auth?.authenticated;
+    authUserRef.current = auth?.user?.id;
+  }, [auth?.authenticated, auth?.user?.id, connect, disconnect]);
 
   // Auto-subscribe to live fixtures
   useEffect(() => {

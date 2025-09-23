@@ -1,6 +1,8 @@
 import { WebSocketServer, WebSocket } from 'ws';
-import { Server } from 'http';
+import { Server, IncomingMessage } from 'http';
 import { randomUUID } from 'crypto';
+import { parse as parseCookie } from 'cookie';
+import { validateSession } from './routers/auth';
 import type { Fixture } from '@shared/schema';
 
 interface WebSocketClient extends WebSocket {
@@ -43,14 +45,35 @@ export class FootballWebSocketServer {
   }
 
   private setupEventHandlers() {
-    this.wss.on('connection', (ws: WebSocket, req) => {
+    this.wss.on('connection', async (ws: WebSocket, req) => {
+      // WebSocket CSRF protection - validate Origin
+      const origin = req.headers.origin;
+      const allowedOrigins = [
+        'http://localhost:5000',
+        'https://localhost:5000', 
+        process.env.REPLIT_URL,
+        process.env.VITE_APP_URL
+      ].filter(Boolean);
+      
+      // Add Replit domain patterns for development/production  
+      const isReaplitDomain = origin && (origin.includes('.replit.dev') || origin.includes('.repl.co'));
+      const isLocalhost = origin && (origin.includes('localhost') || origin.includes('127.0.0.1'));
+      
+      if (origin && !allowedOrigins.some(allowed => origin.startsWith(allowed || '')) && !isReaplitDomain && !isLocalhost) {
+        console.warn(`🚫 WebSocket connection rejected - invalid origin: ${origin}`);
+        ws.close(1008, 'Invalid origin');
+        return;
+      }
       const client = ws as WebSocketClient;
       client.id = randomUUID();
       client.authenticated = false;
       client.subscriptions = new Set();
       
+      // Authenticate via handshake cookies (secure approach)
+      await this.authenticateHandshake(client, req);
+      
       this.clients.set(client.id, client);
-      console.log(`🔗 WebSocket client connected: ${client.id} (${this.clients.size} total)`);
+      console.log(`🔗 WebSocket client connected: ${client.id} (authenticated: ${client.authenticated}) (${this.clients.size} total)`);
 
       // Send welcome message
       this.sendToClient(client.id, {
@@ -84,6 +107,44 @@ export class FootballWebSocketServer {
     });
   }
 
+  private async authenticateHandshake(client: WebSocketClient, req: IncomingMessage) {
+    try {
+      // Parse cookies from handshake request using proper parser
+      const cookieHeader = req.headers.cookie;
+      if (!cookieHeader) {
+        console.log(`🔓 Client ${client.id} connected without cookies - unauthenticated`);
+        return;
+      }
+
+      const cookies = parseCookie(cookieHeader);
+      const sessionId = cookies.session;
+      
+      if (!sessionId) {
+        console.log(`🔓 Client ${client.id} connected without session cookie - unauthenticated`);
+        return;
+      }
+      
+      // Create proper request object for session validation (same method as HTTP routes)
+      const reqLike = {
+        headers: req.headers,
+        cookies: cookies,
+        ip: req.socket?.remoteAddress || req.connection?.remoteAddress,
+        socket: req.socket
+      } as any;
+      
+      if (validateSession(reqLike)) {
+        client.authenticated = true;
+        // Remove hardcoded userId - use session-based authentication without specific identity
+        console.log(`🔐 Client ${client.id} authenticated via handshake session`);
+      } else {
+        console.log(`🔓 Client ${client.id} session validation failed - unauthenticated`);
+      }
+    } catch (error) {
+      console.error(`❌ Handshake auth error for client ${client.id}:`, error);
+      client.authenticated = false;
+    }
+  }
+
   private handleClientMessage(client: WebSocketClient, message: WebSocketMessage) {
     switch (message.type) {
       case 'ping':
@@ -95,15 +156,12 @@ export class FootballWebSocketServer {
         break;
 
       case 'auth':
-        // For now, we'll allow all connections (authentication handled at API level)
-        client.authenticated = true;
-        client.userId = message.data?.userId;
-        console.log(`✅ Client ${client.id} authenticated`);
+        // Authentication now handled at handshake - this is for manual re-auth if needed
         this.sendToClient(client.id, {
           type: 'live_scores',
           data: { 
-            authenticated: true,
-            message: 'Authentication successful'
+            authenticated: client.authenticated,
+            message: client.authenticated ? 'Already authenticated' : 'Authentication required at connection time'
           },
           timestamp: Date.now()
         });
@@ -131,6 +189,17 @@ export class FootballWebSocketServer {
   private subscribe(clientId: string, topic: string) {
     const client = this.clients.get(clientId);
     if (!client) return;
+
+    // Require authentication for sensitive data subscriptions using patterns
+    const isSensitiveTopic = topic === 'live_fixtures' || 
+                           topic === 'match_events' || 
+                           topic === 'live_scores' ||
+                           topic.startsWith('match_');
+    
+    if (isSensitiveTopic && !client.authenticated) {
+      this.sendError(clientId, `Authentication required to subscribe to ${topic}`);
+      return;
+    }
 
     client.subscriptions.add(topic);
     

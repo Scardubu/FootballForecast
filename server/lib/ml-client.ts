@@ -97,13 +97,13 @@ export class MLServiceClient {
     try {
       console.log(`🧠 Requesting ML batch predictions for ${request.requests.length} matches`);
       
-      const response = await fetch(`${this.baseUrl}/predict/batch`, {
+      const response = await fetch(`${this.baseUrl}/predictions/batch`, {
         method: "POST",
         signal: AbortSignal.timeout(this.timeout * 2), // Longer timeout for batch
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(request),
+        body: JSON.stringify(request.requests),
       });
 
       if (!response.ok) {
