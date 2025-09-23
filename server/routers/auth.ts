@@ -129,6 +129,40 @@ authRouter.post('/logout', asyncHandler(async (req, res) => {
 }));
 
 /**
+ * Development auto-login endpoint - bypasses Bearer token requirement
+ * Only available in development mode when VITE_AUTO_LOGIN_DEV is enabled
+ */
+authRouter.post('/dev-login', asyncHandler(async (req, res) => {
+  // Only allow in development mode
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(404).json({ 
+      error: 'Endpoint not available',
+      message: 'Dev login only available in development mode' 
+    });
+  }
+
+  // Create client identifier from IP + User-Agent for basic binding
+  const clientId = `${req.ip}:${req.headers['user-agent'] || 'unknown'}`;
+  const sessionToken = createSessionToken(clientId);
+  
+  // Set secure HttpOnly cookie (use lax for development)
+  res.cookie('session', sessionToken, {
+    httpOnly: true,
+    secure: false, // Allow over HTTP in development
+    sameSite: 'lax', // More permissive for development
+    maxAge: SESSION_DURATION_MS,
+    path: '/'
+  });
+  
+  res.json({ 
+    success: true, 
+    message: 'Development session created successfully',
+    user: { id: 'dev-user', type: 'development' },
+    expires: new Date(Date.now() + SESSION_DURATION_MS).toISOString()
+  });
+}));
+
+/**
  * Check session status
  */
 authRouter.get('/status', asyncHandler(async (req, res) => {
@@ -147,6 +181,7 @@ authRouter.get('/status', asyncHandler(async (req, res) => {
   
   res.json({ 
     authenticated: true, 
+    user: { id: 'session-user', type: 'authenticated' },
     expires: new Date(session.expires).toISOString(),
     issued: new Date(session.issued).toISOString()
   });

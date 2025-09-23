@@ -3,7 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { Standing, Team } from "@/lib/types";
+import { TeamDisplay } from "@/components/team-display";
+import type { Standing, Team } from "@shared/schema";
 
 export function LeagueStandings() {
   const [selectedLeague] = useState(39); // Premier League
@@ -18,7 +19,7 @@ export function LeagueStandings() {
   });
 
   const getTeam = (teamId: number): Team | undefined => {
-    return teams?.find((team: Team) => team.id === teamId);
+    return Array.isArray(teams) ? teams.find((team: Team) => team.id === teamId) : undefined;
   };
 
   if (isLoading) {
@@ -59,7 +60,7 @@ export function LeagueStandings() {
         
         <div className="space-y-3">
           {standings?.map((standing: Standing) => {
-            const team = getTeam(standing.teamId);
+            const team = standing.teamId ? getTeam(standing.teamId) : undefined;
             
             return (
               <div 
@@ -71,23 +72,13 @@ export function LeagueStandings() {
                   <span className="text-sm font-medium text-muted-foreground w-6" data-testid={`position-${standing.teamId}`}>
                     {standing.position}
                   </span>
-                  {team?.logo ? (
-                    <img 
-                      src={team.logo} 
-                      alt={team.name}
-                      className="w-6 h-6 rounded-full object-cover"
-                      data-testid={`team-logo-${standing.teamId}`}
-                    />
-                  ) : (
-                    <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center">
-                      <span className="text-white text-xs font-bold">
-                        {team?.name?.substring(0, 2).toUpperCase() || "??"}
-                      </span>
-                    </div>
-                  )}
-                  <span className="font-medium text-sm" data-testid={`team-name-${standing.teamId}`}>
-                    {team?.name || "Unknown Team"}
-                  </span>
+                  <TeamDisplay 
+                    team={team}
+                    size="sm"
+                    showFlag={true}
+                    showName={true}
+                    data-testid={`team-${standing.teamId}`}
+                  />
                 </div>
                 <div className="flex items-center space-x-4 text-sm">
                   <span className="text-muted-foreground" data-testid={`played-${standing.teamId}`}>
