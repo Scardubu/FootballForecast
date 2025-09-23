@@ -295,14 +295,13 @@ def generate_prediction_explanation(prediction: Dict) -> str:
 async def retrain_model_background(start_date: str, end_date: str):
     """Background task for model retraining"""
     try:
-        fe = FeatureEngineering()
-        features_df, labels = fe.create_training_dataset(start_date, end_date)
+        # Train model with date range - the predictor handles data preparation internally
+        success = predictor.train_model(start_date, end_date)
         
-        if not features_df.empty:
-            metadata = predictor.train_model(features_df, labels)
-            print(f"Model retrained successfully: {metadata}")
+        if success:
+            print(f"Model retrained successfully for period: {start_date} to {end_date}")
         else:
-            print("No training data available for the specified period")
+            print("Model training failed - check logs for details")
             
     except Exception as e:
         print(f"Background model training failed: {e}")
@@ -317,7 +316,7 @@ async def scrape_team_data_background(team_ids: List[int], team_names: List[str]
         for team_id, team_name in zip(team_ids, team_names):
             form_data = scraper.scrape_team_form(team_id, team_name)
             if form_data:
-                scraper.save_to_database(form_data)
+                await scraper.save_to_database(form_data)
                 print(f"Scraped form data for team {team_name}")
         
         # Scrape match data if fixture IDs provided
@@ -325,7 +324,7 @@ async def scrape_team_data_background(team_ids: List[int], team_names: List[str]
             if len(team_names) >= 2:
                 match_data = scraper.scrape_match_xg(fixture_id, team_names[0], team_names[1])
                 if match_data:
-                    scraper.save_to_database(match_data)
+                    await scraper.save_to_database(match_data)
                     print(f"Scraped match data for fixture {fixture_id}")
         
         print("Background scraping completed")
