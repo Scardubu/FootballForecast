@@ -1,0 +1,111 @@
+
+
+# 🚀 Replit Task Prompt – Phase C (Final Experience Delivery)
+
+**Goal:** Complete **Phase C – ML & Real-Time Integration** and finalize SabiScore into a **production-grade platform** that delivers an **informative, entertaining, aesthetically cohesive, and engaging betting intelligence experience**.
+
+---
+
+## ✅ Step-by-Step Instructions
+
+### 1. Codebase Audit & Quick Wins
+
+* [ ] Analyze the repo for integration gaps, errors, and UI inconsistencies.
+* [ ] Apply quick fixes: broken imports, mismatched configs, outdated dependencies.
+* [ ] Document findings as inline TODOs for clarity.
+
+---
+
+### 2. Team Names & Flags (Consistency + Visual Cohesion)
+
+* [ ] Normalize team names with a canonical `team_id` mapping.
+* [ ] Fix flags: use optimized SVG sprites for crisp rendering.
+* [ ] Add graceful fallbacks: neutral placeholder + tooltip with full team name.
+* [ ] Ensure **visual consistency**: align names/flags across match cards, tables, and live updates.
+
+---
+
+### 3. ML Microservice (Informative Predictions)
+
+* [ ] Package the prediction model as a **FastAPI service** in `/ml`.
+* [ ] Implement:
+
+  * `POST /predict` (input validation + probabilities + metadata).
+  * `GET /health` and `GET /metrics` for observability.
+* [ ] Include **model versioning** and prediction confidence levels.
+* [ ] Surface **explanations/insights** in responses (e.g., key factors influencing prediction).
+
+---
+
+### 4. Real-Time Integration (Engagement)
+
+* [ ] Stream live data and predictions through a message layer (BullMQ/Redis).
+* [ ] Implement WebSocket events:
+
+  * `match:update`
+  * `prediction:update`
+  * `alert:valueBet`
+* [ ] Add **animated, real-time updates** to the frontend to boost engagement.
+* [ ] Test end-to-end: fake match → prediction → alert → frontend visualization.
+
+---
+
+### 5. Alerts & Notifications (Interactive Experience)
+
+* [ ] Integrate **Telegram bot** for match updates & value-bet alerts (configurable via `.env`).
+* [ ] Add **Slack webhook integration** for team alerts & trend notifications.
+* [ ] Format alerts to be **informative and entertaining**:
+
+  * Include team flags + names.
+  * Display odds shifts, confidence %, and fun microcopy (e.g., “⚡ Big value spotted!”).
+* [ ] Allow toggling alerts in config (`ALERTS_ENABLED`, `ALERT_CHANNELS`).
+
+---
+
+### 6. UI/UX Review & Polish (Aesthetically Cohesive)
+
+* [ ] Ensure **consistent spacing, typography, and colors** across all pages.
+* [ ] Add **skeleton loaders** for live lists (reduce jumpiness).
+* [ ] Enhance match cards with **interactive tooltips** (injuries, odds history, prediction confidence).
+* [ ] Refine odds visualizations with **animated trends & smooth transitions**.
+* [ ] Ensure **responsive design**: desktop → tablet → mobile.
+* [ ] Apply **material-inspired + subtle glassmorphic design** for modern appeal.
+
+---
+
+### 7. Monitoring & Reliability (Trustworthy Experience)
+
+* [ ] Log every prediction with `match_id`, `team_id`, and `model_version`.
+* [ ] Alert via Slack/Telegram if pipelines fail or predictions stall.
+* [ ] Add lightweight **data drift detection** and log warnings if inputs deviate.
+
+---
+
+### 8. Deployment & Docs
+
+* [ ] Add Dockerfile for `/ml` service.
+* [ ] Update CI/CD: linting, schema checks, integration tests.
+* [ ] Provide a **short runbook**: how to deploy, retrain, and troubleshoot.
+
+---
+
+## 🎯 Acceptance Criteria
+
+* Predictions are **informative** (probabilities + confidence + explanation).
+* UX is **entertaining and engaging** (animated updates, live alerts, fun microcopy).
+* Design is **aesthetically cohesive** (material + subtle glassmorphic).
+* Alerts via **Telegram/Slack** are timely, clear, and visually enhanced.
+* Team names & flags display correctly across all components.
+* The platform feels **professional, polished, and production-ready**.
+
+---
+
+⚡️ **Experience-driven Quick Wins Included:**
+
+* Fun + informative alert messages with emojis.
+* Smooth animations for odds and predictions.
+* Tooltip insights for deeper bettor engagement.
+* Fallback visuals for robustness (never broken UI).
+* Polished design system with consistency across devices.
+
+
