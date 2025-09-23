@@ -3,6 +3,20 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { scrapingScheduler } from "./scraping-scheduler";
 import { apiFootballClient } from "./services/apiFootballClient";
+import {
+  httpLogger,
+  logger,
+  generalRateLimit,
+  strictRateLimit,
+  authenticateToken,
+  optionalAuth,
+  createAuthMiddleware,
+  errorHandler,
+  notFoundHandler,
+  asyncHandler,
+  AppError,
+  ServiceUnavailableError
+} from "./middleware";
 import { z } from "zod";
 
 // Legacy function wrapper for backward compatibility during migration
@@ -584,9 +598,46 @@ function generateBasicPrediction(fixtureId: number) {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Trust proxy for rate limiting and IP detection behind load balancers
+  app.set('trust proxy', 1);
+  
+  // Apply global middleware stack
+  logger.info('Applying global middleware stack');
+  app.use(httpLogger); // Structured request logging with request IDs
+  app.use(generalRateLimit); // Rate limiting protection (100 req/15min per IP)
+  
+  // Health and monitoring endpoints (no auth required)
+  app.get('/api/health', asyncHandler(async (req, res) => {
+    res.json({ 
+      status: 'healthy', 
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+      version: process.env.npm_package_version || '1.0.0',
+      environment: process.env.NODE_ENV || 'development'
+    });
+  }));
+
+  app.get('/api/_client-status', asyncHandler(async (req, res) => {
+    const clientStatus = apiFootballClient.getStatus();
+    res.json({
+      apiClient: clientStatus,
+      scheduler: {
+        initialized: !!scrapingScheduler,
+        timestamp: new Date().toISOString()
+      },
+      uptime: process.uptime(),
+      timestamp: new Date().toISOString()
+    });
+  }));
+
+  // Apply optional authentication to protected API routes (health endpoints declared before this middleware)
+  app.use('/api', createAuthMiddleware({ 
+    required: false, 
+    skipPaths: ['/health', '/_client-status'] 
+  }));
   
   // Get live fixtures
-  app.get("/api/fixtures/live", async (req, res) => {
+  app.get("/api/fixtures/live", asyncHandler(async (req, res) => {
     try {
       await updateLiveFixtures();
       const fixtures = await storage.getLiveFixtures();
@@ -594,10 +645,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch live fixtures" });
     }
-  });
+  }));
 
   // Get fixtures for a league
-  app.get("/api/fixtures", async (req, res) => {
+  app.get("/api/fixtures", asyncHandler(async (req, res) => {
     try {
       const leagueId = req.query.league ? parseInt(req.query.league as string) : undefined;
       const fixtures = await storage.getFixtures(leagueId);
@@ -605,10 +656,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch fixtures" });
     }
-  });
+  }));
 
-  // Get league standings
-  app.get("/api/standings/:leagueId", async (req, res) => {
+  // Get league standings with strict rate limiting
+  app.get("/api/standings/:leagueId", strictRateLimit, asyncHandler(async (req, res) => {
     try {
       const leagueId = parseInt(req.params.leagueId);
       const season = parseInt(req.query.season as string) || 2024;
@@ -619,17 +670,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch standings" });
     }
-  });
+  }));
 
   // Get leagues
-  app.get("/api/leagues", async (req, res) => {
+  app.get("/api/leagues", asyncHandler(async (req, res) => {
     try {
       const leagues = await storage.getLeagues();
       res.json(leagues);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch leagues" });
     }
-  });
+  }));
 
   // Get teams
   app.get("/api/teams", async (req, res) => {
@@ -929,6 +980,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Update live fixtures every 5 minutes to avoid API limits
   setInterval(updateLiveFixtures, 300000);
+
+  // Apply centralized error handling middleware after all routes
+  app.use(notFoundHandler); // Handle 404s with structured Problem+JSON response
+  app.use(errorHandler); // Centralized error handling with proper logging and Problem+JSON format
+  
+  logger.info('All routes and middleware configured successfully with centralized error handling');
 
   const httpServer = createServer(app);
   return httpServer;
