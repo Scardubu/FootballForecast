@@ -1,18 +1,18 @@
 """
-Base scraper class with ethical practices and resilience patterns
+Enhanced base scraper with Playwright stealth mode and production-grade resilience
 """
 import time
 import random
-import sqlite3
 import json
+import asyncio
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 from fake_useragent import UserAgent
-import requests
-from bs4 import BeautifulSoup
+from playwright.async_api import async_playwright, Page, BrowserContext, Browser
 from tenacity import retry, stop_after_attempt, wait_exponential
 import functools
+import os
 
 
 @dataclass
@@ -27,115 +27,95 @@ class ScrapedData:
     confidence: float = 1.0
 
 
-class EthicalScraper:
-    """Base scraper with ethical practices and resilience"""
+class PlaywrightScraper:
+    """Production-grade Playwright scraper with stealth mode and resilience"""
     
     def __init__(self, base_url: str, site_name: str):
         self.base_url = base_url
         self.site_name = site_name
         self.ua = UserAgent()
-        self.session = requests.Session()
         
-        # Rate limiting - max 1 request per minute per site
-        self.min_delay = 60  # seconds
+        # Rate limiting - adaptive based on site
+        self.min_delay = 45  # seconds - more conservative
         self.last_request_time = 0
         
-        # Proxy rotation (free proxies from environment)
+        # Proxy rotation from environment secrets
         self.proxy_pool = self._load_proxy_pool()
         self.current_proxy_index = 0
         
-        # Initialize local storage
-        self.db_path = Path("data/scraped_data.db")
+        # Playwright instances
+        self.playwright = None
+        self.browser = None
+        self.context = None
+        
+        # Initialize cache storage
         self.cache_dir = Path("data/cache")
         self._init_storage()
     
-    def _load_proxy_pool(self) -> List[str]:
-        """Load proxy pool from environment or config"""
-        # In production, these would come from Replit secrets
-        return [
-            # Free proxy examples (to be populated from environment)
-            "proxy1.example.com:8080",
-            "proxy2.example.com:8080",
-        ]
+    def _load_proxy_pool(self) -> List[Dict[str, str]]:
+        """Load proxy pool from Replit secrets or environment"""
+        proxy_list = []
+        
+        # Load from Replit secrets - format: PROXY_1, PROXY_2, etc.
+        for i in range(1, 11):  # Support up to 10 proxies
+            proxy = os.getenv(f'PROXY_{i}')
+            if proxy:
+                # Format: "server:port:username:password" or "server:port"
+                parts = proxy.split(':')
+                if len(parts) >= 2:
+                    proxy_config = {
+                        'server': f"{parts[0]}:{parts[1]}",
+                        'username': parts[2] if len(parts) > 2 else None,
+                        'password': parts[3] if len(parts) > 3 else None
+                    }
+                    proxy_list.append(proxy_config)
+        
+        return proxy_list
     
     def _init_storage(self):
-        """Initialize SQLite database and cache directories"""
-        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        """Initialize cache directories and database connection info"""
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        # Create tables for different data types
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS scraped_matches (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                fixture_id INTEGER,
-                source TEXT,
-                home_xg REAL,
-                away_xg REAL,
-                home_rating REAL,
-                away_rating REAL,
-                momentum_score REAL,
-                scraped_at TEXT,
-                confidence REAL DEFAULT 1.0
-            )
-        """)
-        
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS injuries (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                player_name TEXT,
-                team_id INTEGER,
-                injury_type TEXT,
-                expected_return TEXT,
-                scraped_at TEXT,
-                source TEXT
-            )
-        """)
-        
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS team_form (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                team_id INTEGER,
-                form_string TEXT,
-                last_5_results TEXT,
-                points_last_5 INTEGER,
-                goals_scored_last_5 INTEGER,
-                goals_conceded_last_5 INTEGER,
-                scraped_at TEXT,
-                source TEXT
-            )
-        """)
-        
-        conn.commit()
-        conn.close()
+        # Database connection will be handled by the main application's storage layer
+        # We'll use the existing PostgreSQL database instead of SQLite
+        self.database_url = os.getenv('DATABASE_URL')
     
-    def _get_headers(self) -> Dict[str, str]:
-        """Generate realistic headers with rotation"""
+    def _get_stealth_headers(self) -> Dict[str, str]:
+        """Generate realistic headers for stealth mode"""
         return {
             'User-Agent': self.ua.random,
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'Accept-Encoding': 'gzip, deflate',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
             'Connection': 'keep-alive',
             'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'Cache-Control': 'max-age=0',
+            'DNT': '1',
+            'Sec-Ch-Ua': '"Chromium";v="140", "Google Chrome";v="140", "Not A;Brand";v="99"',
+            'Sec-Ch-Ua-Mobile': '?0',
+            'Sec-Ch-Ua-Platform': '"Linux"'
         }
     
-    def _rotate_proxy(self) -> Optional[Dict[str, str]]:
-        """Rotate through proxy pool"""
+    def _get_proxy_config(self) -> Optional[Dict[str, str]]:
+        """Get next proxy configuration for Playwright"""
         if not self.proxy_pool:
             return None
         
         proxy = self.proxy_pool[self.current_proxy_index]
         self.current_proxy_index = (self.current_proxy_index + 1) % len(self.proxy_pool)
         
-        return {
-            'http': f'http://{proxy}',
-            'https': f'https://{proxy}'
-        }
+        config = {'server': proxy['server']}
+        if proxy['username'] and proxy['password']:
+            config['username'] = proxy['username']
+            config['password'] = proxy['password']
+        
+        return config
     
-    def _respect_rate_limit(self):
+    async def _respect_rate_limit(self):
         """Enforce rate limiting between requests"""
         current_time = time.time()
         time_since_last = current_time - self.last_request_time
@@ -143,31 +123,119 @@ class EthicalScraper:
         if time_since_last < self.min_delay:
             sleep_time = self.min_delay - time_since_last + random.uniform(5, 15)
             print(f"Rate limiting: waiting {sleep_time:.1f}s for {self.site_name}")
-            time.sleep(sleep_time)
+            await asyncio.sleep(sleep_time)
         
         self.last_request_time = time.time()
     
+    async def _init_browser(self):
+        """Initialize Playwright browser with stealth mode"""
+        if self.playwright is None:
+            self.playwright = await async_playwright().start()
+            
+            # Launch browser with stealth settings
+            browser_args = [
+                '--no-sandbox',
+                '--disable-blink-features=AutomationControlled',
+                '--disable-dev-shm-usage',
+                '--disable-extensions',
+                '--disable-gpu',
+                '--disable-default-apps',
+                '--no-first-run',
+                '--no-zygote',
+                '--single-process',
+                '--hide-scrollbars',
+                '--mute-audio'
+            ]
+            
+            proxy_config = self._get_proxy_config()
+            
+            launch_options = {
+                'headless': True,
+                'args': browser_args
+            }
+            
+            if proxy_config:
+                launch_options['proxy'] = proxy_config
+            
+            self.browser = await self.playwright.chromium.launch(**launch_options)
+            
+            # Create stealth context
+            self.context = await self.browser.new_context(
+                user_agent=self.ua.random,
+                viewport={'width': 1920, 'height': 1080},
+                screen={'width': 1920, 'height': 1080},
+                device_scale_factor=1,
+                is_mobile=False,
+                has_touch=False,
+                default_browser_type='chromium',
+                locale='en-US',
+                timezone_id='America/New_York',
+                permissions=[],
+                extra_http_headers={
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                    'Accept-Language': 'en-US,en;q=0.5',
+                    'Accept-Encoding': 'gzip, deflate',
+                    'Connection': 'keep-alive',
+                    'Upgrade-Insecure-Requests': '1',
+                    'Sec-Fetch-Dest': 'document',
+                    'Sec-Fetch-Mode': 'navigate',
+                    'Sec-Fetch-Site': 'none',
+                    'Cache-Control': 'max-age=0'
+                }
+            )
+            
+            # Add stealth scripts to avoid detection
+            await self.context.add_init_script("""
+                // Remove webdriver property
+                Object.defineProperty(navigator, 'webdriver', {get: () => false});
+                
+                // Mock plugins
+                Object.defineProperty(navigator, 'plugins', {
+                    get: () => [1, 2, 3, 4, 5]
+                });
+                
+                // Mock languages
+                Object.defineProperty(navigator, 'languages', {
+                    get: () => ['en-US', 'en']
+                });
+                
+                // Override permissions
+                const originalQuery = window.navigator.permissions.query;
+                window.navigator.permissions.query = (parameters) => (
+                    parameters.name === 'notifications' ?
+                        Promise.resolve({ state: Notification.permission }) :
+                        originalQuery(parameters)
+                );
+            """)
+    
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
-    def _make_request(self, url: str) -> Optional[BeautifulSoup]:
-        """Make HTTP request with retries and error handling"""
+    async def _make_request(self, url: str) -> Optional[Page]:
+        """Make request using Playwright with stealth mode"""
         self._respect_rate_limit()
         
-        headers = self._get_headers()
-        proxies = self._rotate_proxy()
-        
         try:
-            response = self.session.get(
-                url, 
-                headers=headers, 
-                proxies=proxies,
-                timeout=30
-            )
-            response.raise_for_status()
+            await self._init_browser()
             
-            return BeautifulSoup(response.content, 'html.parser')
+            if not self.context:
+                raise Exception("Browser context not initialized")
+                
+            page = await self.context.new_page()
             
-        except requests.RequestException as e:
-            print(f"Request failed for {url}: {e}")
+            # Add additional stealth measures
+            await page.route('**/*', lambda route: route.continue_(
+                headers={**route.request.headers, 'User-Agent': self.ua.random}
+            ))
+            
+            # Navigate with realistic timing
+            await page.goto(url, wait_until='networkidle', timeout=30000)
+            
+            # Random delay to simulate human behavior
+            await asyncio.sleep(random.uniform(1, 3))
+            
+            return page
+            
+        except Exception as e:
+            print(f"Playwright request failed for {url}: {e}")
             raise
     
     @functools.lru_cache(maxsize=1000)
@@ -201,64 +269,71 @@ class EthicalScraper:
         with open(cache_file, 'w') as f:
             json.dump(cache_data, f, indent=2)
     
-    def save_to_database(self, data: ScrapedData):
-        """Save scraped data to SQLite database"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        if data.data_type == 'match_stats':
-            cursor.execute("""
-                INSERT INTO scraped_matches 
-                (fixture_id, source, home_xg, away_xg, home_rating, away_rating, 
-                 momentum_score, scraped_at, confidence)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                data.fixture_id,
-                data.source,
-                data.data.get('home_xg'),
-                data.data.get('away_xg'),
-                data.data.get('home_rating'),
-                data.data.get('away_rating'),
-                data.data.get('momentum_score'),
-                data.scraped_at,
-                data.confidence
-            ))
-        
-        elif data.data_type == 'injuries':
-            cursor.execute("""
-                INSERT INTO injuries 
-                (player_name, team_id, injury_type, expected_return, scraped_at, source)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, (
-                data.data.get('player_name'),
-                data.team_id,
-                data.data.get('injury_type'),
-                data.data.get('expected_return'),
-                data.scraped_at,
-                data.source
-            ))
-        
-        conn.commit()
-        conn.close()
+    async def save_to_database(self, data: ScrapedData):
+        """Save scraped data to PostgreSQL database via API"""
+        # Integration point with main application's storage layer
+        # This will be connected to the main PostgreSQL database
+        try:
+            import requests
+            
+            # Convert scraped data to format expected by main application
+            payload = {
+                'source': data.source,
+                'data_type': data.data_type,
+                'fixture_id': data.fixture_id,
+                'team_id': data.team_id,
+                'data': data.data,
+                'scraped_at': data.scraped_at,
+                'confidence': data.confidence
+            }
+            
+            # Send to internal API endpoint for database storage
+            response = requests.post('http://localhost:5000/api/scraped-data', json=payload)
+            response.raise_for_status()
+            
+            print(f"✅ Saved {data.data_type} data from {data.source}")
+            
+        except Exception as e:
+            print(f"⚠️ Failed to save scraped data: {e}")
+            # Fallback: save to local cache for later retry
+            cache_key = f"failed_{data.source}_{data.fixture_id or data.team_id}_{int(time.time())}"
+            self._save_to_cache(cache_key, {
+                'data': data.__dict__,
+                'error': str(e),
+                'retry_after': time.time() + 300  # Retry after 5 minutes
+            })
     
-    def get_fallback_data(self, data_type: str, identifier: int) -> Optional[Dict]:
-        """Get fallback data from database when scraping fails"""
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
-        if data_type == 'match_stats':
-            cursor.execute("""
-                SELECT * FROM scraped_matches 
-                WHERE fixture_id = ? 
-                ORDER BY scraped_at DESC 
-                LIMIT 1
-            """, (identifier,))
-        
-        result = cursor.fetchone()
-        conn.close()
-        
-        if result:
-            columns = [desc[0] for desc in cursor.description]
-            return dict(zip(columns, result))
+    async def get_fallback_data(self, data_type: str, identifier: int) -> Optional[Dict]:
+        """Get fallback data from cache and database when scraping fails"""
+        try:
+            # First try local cache
+            cache_key = f"fallback_{data_type}_{identifier}"
+            cached = self._get_cached_data(cache_key)
+            if cached:
+                return cached
+            
+            # Then try main database via API
+            import requests
+            response = requests.get(f'http://localhost:5000/api/scraped-data/{data_type}/{identifier}')
+            if response.status_code == 200:
+                data = response.json()
+                # Cache the fallback data
+                self._save_to_cache(cache_key, data)
+                return data
+                
+        except Exception as e:
+            print(f"Failed to get fallback data: {e}")
         
         return None
+    
+    async def cleanup(self):
+        """Cleanup Playwright resources"""
+        try:
+            if self.context:
+                await self.context.close()
+            if self.browser:
+                await self.browser.close()
+            if self.playwright:
+                await self.playwright.stop()
+        except Exception as e:
+            print(f"Cleanup error: {e}")

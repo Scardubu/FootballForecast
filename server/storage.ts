@@ -6,7 +6,9 @@ import {
   type Fixture,
   type Prediction,
   type Standing,
-  type TeamStats
+  type TeamStats,
+  type ScrapedData,
+  type InsertScrapedData
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -37,6 +39,11 @@ export interface IStorage {
   
   getTeamStats(teamId: number, leagueId?: number): Promise<TeamStats | undefined>;
   updateTeamStats(stats: TeamStats): Promise<TeamStats>;
+  
+  // Scraped data methods
+  createScrapedData(data: InsertScrapedData): Promise<ScrapedData>;
+  getScrapedData(source?: string, dataType?: string, fixtureId?: number, teamId?: number): Promise<ScrapedData[]>;
+  getLatestScrapedData(source: string, dataType: string): Promise<ScrapedData | undefined>;
 }
 
 export class MemStorage implements IStorage {
@@ -47,6 +54,7 @@ export class MemStorage implements IStorage {
   private predictions: Map<string, Prediction>;
   private standings: Map<string, Standing>;
   private teamStats: Map<string, TeamStats>;
+  private scrapedData: Map<string, ScrapedData>;
 
   constructor() {
     this.users = new Map();
@@ -56,6 +64,7 @@ export class MemStorage implements IStorage {
     this.predictions = new Map();
     this.standings = new Map();
     this.teamStats = new Map();
+    this.scrapedData = new Map();
   }
 
   async getUser(id: string): Promise<User | undefined> {
@@ -159,6 +168,37 @@ export class MemStorage implements IStorage {
   async updateTeamStats(stats: TeamStats): Promise<TeamStats> {
     this.teamStats.set(stats.id, stats);
     return stats;
+  }
+
+  // Scraped data methods for memory storage
+  async createScrapedData(data: InsertScrapedData): Promise<ScrapedData> {
+    const id = randomUUID();
+    const scrapedData: ScrapedData = { 
+      ...data, 
+      id, 
+      createdAt: new Date() 
+    };
+    this.scrapedData.set(id, scrapedData);
+    return scrapedData;
+  }
+
+  async getScrapedData(source?: string, dataType?: string, fixtureId?: number, teamId?: number): Promise<ScrapedData[]> {
+    return Array.from(this.scrapedData.values())
+      .filter(data => {
+        if (source && data.source !== source) return false;
+        if (dataType && data.dataType !== dataType) return false;
+        if (fixtureId && data.fixtureId !== fixtureId) return false;
+        if (teamId && data.teamId !== teamId) return false;
+        return true;
+      })
+      .sort((a, b) => new Date(b.scrapedAt).getTime() - new Date(a.scrapedAt).getTime())
+      .slice(0, 100);
+  }
+
+  async getLatestScrapedData(source: string, dataType: string): Promise<ScrapedData | undefined> {
+    return Array.from(this.scrapedData.values())
+      .filter(data => data.source === source && data.dataType === dataType)
+      .sort((a, b) => new Date(b.scrapedAt).getTime() - new Date(a.scrapedAt).getTime())[0];
   }
 }
 

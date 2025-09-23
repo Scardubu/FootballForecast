@@ -92,6 +92,19 @@ export const teamStats = pgTable("team_stats", {
   lastUpdated: timestamp("last_updated").default(sql`now()`),
 });
 
+// Dedicated table for scraped data - isolated from core tables to avoid FK issues
+export const scrapedData = pgTable("scraped_data", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  source: text("source").notNull(), // "fbref", "whoscored", etc.
+  dataType: text("data_type").notNull(), // "match_stats", "team_ratings", "match_insights"
+  fixtureId: integer("fixture_id"), // Optional reference - no FK constraint
+  teamId: integer("team_id"), // Optional reference - no FK constraint  
+  data: jsonb("data").notNull(), // Flexible JSON storage for scraped content
+  confidence: decimal("confidence", { precision: 5, scale: 2 }).notNull(),
+  scrapedAt: timestamp("scraped_at").notNull(),
+  createdAt: timestamp("created_at").default(sql`now()`),
+});
+
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
@@ -104,6 +117,19 @@ export const insertPredictionSchema = createInsertSchema(predictions);
 export const insertStandingSchema = createInsertSchema(standings);
 export const insertTeamStatsSchema = createInsertSchema(teamStats);
 
+// Scraped data validation with strict type checking
+export const insertScrapedDataSchema = createInsertSchema(scrapedData).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  source: z.enum(["fbref", "whoscored", "api-football", "default"]),
+  dataType: z.enum(["match_stats", "team_ratings", "match_insights", "team_form", "xg_data"]),
+  data: z.record(z.unknown()).refine((val) => Object.keys(val).length > 0, {
+    message: "Data object cannot be empty"
+  }),
+  confidence: z.number().min(0).max(1),
+});
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type League = typeof leagues.$inferSelect;
@@ -112,3 +138,5 @@ export type Fixture = typeof fixtures.$inferSelect;
 export type Prediction = typeof predictions.$inferSelect;
 export type Standing = typeof standings.$inferSelect;
 export type TeamStats = typeof teamStats.$inferSelect;
+export type ScrapedData = typeof scrapedData.$inferSelect;
+export type InsertScrapedData = z.infer<typeof insertScrapedDataSchema>;

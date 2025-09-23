@@ -66,7 +66,18 @@ async function updateLiveFixtures() {
           halftimeAwayScore: match.score.halftime.away,
         };
         
-        await storage.updateFixture(fixture);
+        // *** FIX: Update teams and league BEFORE fixture to avoid FK violations ***
+        
+        // Update league first
+        await storage.updateLeague({
+          id: match.league.id,
+          name: match.league.name,
+          country: match.league.country,
+          logo: match.league.logo,
+          flag: match.league.flag,
+          season: match.league.season,
+          type: match.league.type || 'League'
+        });
         
         // Update teams with enhanced data
         const homeTeam = {
@@ -94,21 +105,13 @@ async function updateLiveFixtures() {
           storage.updateTeam(awayTeam)
         ]);
         
+        // NOW update fixture after teams/league exist
+        await storage.updateFixture(fixture);
+        
         // Generate ML predictions for completed or upcoming matches
         if (match.fixture.status.short === "FT" || match.fixture.status.short === "NS") {
           await generateMLPredictions(match.fixture.id, homeTeam.id, awayTeam.id);
         }
-        
-        // Update league
-        await storage.updateLeague({
-          id: match.league.id,
-          name: match.league.name,
-          country: match.league.country,
-          logo: match.league.logo,
-          flag: match.league.flag,
-          season: match.league.season,
-          type: match.league.type
-        });
       }
     }
   } catch (error) {
@@ -677,6 +680,107 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(stats);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch team stats" });
+    }
+  });
+
+  // Secure scraped data endpoint with validation
+  app.post("/api/scraped-data", async (req, res) => {
+    try {
+      // Improved authentication check - support Bearer tokens  
+      const authHeader = req.headers.authorization || req.headers['x-internal-token'];
+      const expectedToken = process.env.SCRAPER_AUTH_TOKEN;
+      
+      if (!expectedToken) {
+        return res.status(500).json({ error: "Server misconfiguration - auth token not set" });
+      }
+      
+      let authToken: string | undefined;
+      if (authHeader?.startsWith('Bearer ')) {
+        authToken = authHeader.substring(7);
+      } else if (typeof authHeader === 'string') {
+        authToken = authHeader;
+      }
+      
+      if (!authToken || authToken !== expectedToken) {
+        res.setHeader('WWW-Authenticate', 'Bearer');
+        return res.status(401).json({ error: "Unauthorized - Invalid auth token" });
+      }
+      
+      // Import validation schema dynamically to avoid circular dependencies
+      const { insertScrapedDataSchema } = await import("../shared/schema.ts");
+      
+      // Validate request body with Zod
+      const validation = insertScrapedDataSchema.safeParse({
+        source: req.body.source,
+        dataType: req.body.data_type || req.body.dataType,
+        fixtureId: req.body.fixture_id || req.body.fixtureId,
+        teamId: req.body.team_id || req.body.teamId,
+        data: req.body.data,
+        confidence: req.body.confidence,
+        scrapedAt: new Date(req.body.scraped_at || req.body.scrapedAt)
+      });
+      
+      if (!validation.success) {
+        return res.status(400).json({ 
+          error: "Validation failed",
+          details: validation.error.issues 
+        });
+      }
+      
+      // Store in dedicated scraped data table (no FK constraints)
+      const storedData = await storage.createScrapedData(validation.data);
+      
+      console.log(`✅ Securely stored ${validation.data.dataType} data from ${validation.data.source} (ID: ${storedData.id})`);
+      
+      res.status(201).json({ 
+        success: true,
+        id: storedData.id,
+        message: `Stored ${validation.data.dataType} data from ${validation.data.source}`,
+        confidence: validation.data.confidence
+      });
+      
+    } catch (error) {
+      console.error("Error storing scraped data:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // Get scraped data with query filters
+  app.get("/api/scraped-data", async (req, res) => {
+    try {
+      const { source, dataType, fixtureId, teamId } = req.query;
+      
+      const data = await storage.getScrapedData(
+        source as string,
+        dataType as string, 
+        fixtureId ? parseInt(fixtureId as string) : undefined,
+        teamId ? parseInt(teamId as string) : undefined
+      );
+      
+      res.json(data);
+      
+    } catch (error) {
+      console.error("Error fetching scraped data:", error);
+      res.status(500).json({ error: "Failed to fetch scraped data" });
+    }
+  });
+  
+  // Get latest scraped data for source and type
+  app.get("/api/scraped-data/latest/:source/:dataType", async (req, res) => {
+    try {
+      const { source, dataType } = req.params;
+      
+      const data = await storage.getLatestScrapedData(source, dataType);
+      
+      if (!data) {
+        return res.status(404).json({ error: "No data found" });
+      }
+      
+      res.json(data);
+      
+    } catch (error) {
+      console.error("Error fetching latest scraped data:", error);
+      res.status(500).json({ error: "Failed to fetch latest scraped data" });
     }
   });
 

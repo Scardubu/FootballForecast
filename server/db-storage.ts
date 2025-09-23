@@ -1,11 +1,11 @@
 import { drizzle } from "drizzle-orm/neon-http";
 import { neon } from "@neondatabase/serverless";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import type { IStorage } from "./storage.ts";
 import { 
-  users, leagues, teams, fixtures, predictions, standings, teamStats,
+  users, leagues, teams, fixtures, predictions, standings, teamStats, scrapedData,
   type User, type League, type Team, type Fixture, type Prediction, 
-  type Standing, type TeamStats, type InsertUser
+  type Standing, type TeamStats, type InsertUser, type ScrapedData, type InsertScrapedData
 } from "../shared/schema.ts";
 
 const sql = neon(process.env.DATABASE_URL!);
@@ -188,7 +188,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateTeamStats(stats: TeamStats): Promise<TeamStats> {
-    const existing = await this.getTeamStats(stats.teamId, stats.leagueId ?? undefined);
+    const existing = await this.getTeamStats(stats.teamId, stats.leagueId || undefined);
     
     if (existing) {
       const updated = await db.update(teamStats)
@@ -200,5 +200,40 @@ export class DatabaseStorage implements IStorage {
       const inserted = await db.insert(teamStats).values(stats).returning();
       return inserted[0];
     }
+  }
+
+  // Scraped data methods - secure and validated
+  async createScrapedData(data: InsertScrapedData): Promise<ScrapedData> {
+    const inserted = await db.insert(scrapedData).values([data]).returning();
+    return inserted[0];
+  }
+
+  async getScrapedData(source?: string, dataType?: string, fixtureId?: number, teamId?: number): Promise<ScrapedData[]> {
+    const conditions = [];
+    
+    if (source) conditions.push(eq(scrapedData.source, source));
+    if (dataType) conditions.push(eq(scrapedData.dataType, dataType));
+    if (fixtureId) conditions.push(eq(scrapedData.fixtureId, fixtureId));
+    if (teamId) conditions.push(eq(scrapedData.teamId, teamId));
+    
+    let query = db.select().from(scrapedData);
+    
+    if (conditions.length > 0) {
+      query = query.where(and(...conditions));
+    }
+    
+    return await query.orderBy(desc(scrapedData.scrapedAt)).limit(100);
+  }
+
+  async getLatestScrapedData(source: string, dataType: string): Promise<ScrapedData | undefined> {
+    const result = await db.select().from(scrapedData)
+      .where(and(
+        eq(scrapedData.source, source),
+        eq(scrapedData.dataType, dataType)
+      ))
+      .orderBy(desc(scrapedData.scrapedAt))
+      .limit(1);
+    
+    return result[0];
   }
 }
