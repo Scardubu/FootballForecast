@@ -18,9 +18,35 @@ async function updateStandings(leagueId: number, season: number) {
     console.log(`API response for league ${leagueId}:`, JSON.stringify(data).substring(0, 200) + '...');
     
     if (data.response && Array.isArray(data.response) && data.response.length > 0 && data.response[0]?.league?.standings) {
-      const standings = data.response[0].league.standings[0];
+      const leagueData = data.response[0].league;
+      const standings = leagueData.standings[0];
       console.log(`Found ${standings.length} teams in league ${leagueId}`);
       
+      // First, ensure league exists to prevent FK constraint violations
+      await storage.updateLeague({
+        id: leagueData.id,
+        name: leagueData.name,
+        country: leagueData.country,
+        logo: leagueData.logo || null,
+        flag: leagueData.flag || null,
+        season: season,
+        type: leagueData.type || 'League'
+      });
+      
+      // Next, ensure all teams exist to prevent FK constraint violations
+      const teamsData = standings.map((team: any) => ({
+        id: team.team.id,
+        name: team.team.name,
+        logo: team.team.logo || null,
+        country: leagueData.country,
+        national: false,
+        code: team.team.code || null,
+        founded: team.team.founded || null
+      }));
+      
+      await storage.updateTeams(teamsData);
+      
+      // Finally, insert standings after ensuring dependencies exist
       const standingsData = standings.map((team: any) => ({
         id: `${leagueId}-${team.team.id}`,
         leagueId,

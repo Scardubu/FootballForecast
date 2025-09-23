@@ -263,19 +263,18 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getTeamStats(teamId: number, leagueId?: number): Promise<TeamStats | undefined> {
-    const query = db.select().from(teamStats).where(eq(teamStats.teamId, teamId));
-    const result = await query.limit(1);
+    const conditions = [eq(teamStats.teamId, teamId)];
     
-    if (leagueId && result.length > 0) {
-      // Filter by league ID after fetch if needed
-      return result.find(stats => stats.leagueId === leagueId);
+    if (leagueId) {
+      conditions.push(eq(teamStats.leagueId, leagueId));
     }
     
+    const result = await db.select().from(teamStats).where(and(...conditions)).limit(1);
     return result[0];
   }
 
   async updateTeamStats(stats: TeamStats): Promise<TeamStats> {
-    const existing = await this.getTeamStats(stats.teamId, stats.leagueId ?? undefined);
+    const existing = await this.getTeamStats(stats.teamId, stats.leagueId ? stats.leagueId : undefined);
     
     if (existing) {
       const updated = await db.update(teamStats)
@@ -291,7 +290,12 @@ export class DatabaseStorage implements IStorage {
 
   // Scraped data methods - secure and validated
   async createScrapedData(data: InsertScrapedData): Promise<ScrapedData> {
-    const inserted = await db.insert(scrapedData).values([data]).returning();
+    // Ensure confidence is a string as required by the schema
+    const dataWithStringConfidence = {
+      ...data,
+      confidence: String(data.confidence ?? "0")
+    };
+    const inserted = await db.insert(scrapedData).values([dataWithStringConfidence]).returning();
     return inserted[0];
   }
 
