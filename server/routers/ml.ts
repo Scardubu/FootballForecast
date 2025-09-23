@@ -143,12 +143,8 @@ mlRouter.post("/predict/batch", asyncHandler(async (req, res) => {
       console.log(`💾 Stored ${storedPredictions.length} batch predictions in database`);
     }
     
-    res.json({
-      predictions,
-      total: predictions.length,
-      stored: storedPredictions.length,
-      failed: predictions.length - storedPredictions.length
-    });
+    // Return predictions array to match client expectation
+    res.json(predictions);
     
   } catch (validationError) {
     if (validationError instanceof z.ZodError) {
@@ -263,6 +259,7 @@ mlRouter.post("/predict/fixture/:fixtureId", asyncHandler(async (req, res) => {
         bothTeamsScore: prediction.additional_markets.both_teams_score.toString(),
         over25Goals: prediction.additional_markets.over_2_5_goals.toString(),
         confidence: prediction.confidence.toString(),
+        createdAt: new Date(),
       });
       console.log(`💾 Stored prediction for fixture ${fixtureId} in database`);
     } catch (dbError) {

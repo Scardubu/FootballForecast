@@ -4,14 +4,25 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/lib/auth-context";
 import { TeamDisplay } from "@/components/team-display";
+import { useWebSocket } from "@/hooks/use-websocket";
 import type { Fixture, Team } from "@shared/schema";
 
 export function LiveMatches() {
   const { auth, isLoading: authLoading } = useAuth();
   
+  // Use WebSocket for real-time updates with HTTP fallback
+  const { isConnected: wsConnected, isConnecting: wsConnecting, connectionStats } = useWebSocket({
+    onMessage: (message) => {
+      if (message.type === 'fixture_update') {
+        console.log('🔄 Real-time fixture update received');
+      }
+    }
+  });
+  
   const { data: liveFixtures, isLoading } = useQuery<Fixture[]>({
     queryKey: ["/api/fixtures/live"],
-    refetchInterval: 15000, // Refetch every 15 seconds
+    // Use WebSocket when connected and stable, fallback to polling otherwise
+    refetchInterval: wsConnected && !wsConnecting ? false : 15000,
     enabled: !authLoading && !!auth?.authenticated,
   });
 
@@ -64,8 +75,23 @@ export function LiveMatches() {
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold text-foreground">Live Matches</h2>
         <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-          <i className="fas fa-clock"></i>
-          <span>Updates every 15 seconds</span>
+          {wsConnecting ? (
+            <>
+              <i className="fas fa-spinner fa-spin text-info"></i>
+              <span>Connecting to real-time updates...</span>
+            </>
+          ) : wsConnected ? (
+            <>
+              <i className="fas fa-wifi text-success"></i>
+              <span>Real-time updates • {connectionStats.messagesReceived} received</span>
+              <div className="w-2 h-2 bg-success rounded-full live-pulse"></div>
+            </>
+          ) : (
+            <>
+              <i className="fas fa-clock text-warning"></i>
+              <span>Updates every 15 seconds</span>
+            </>
+          )}
         </div>
       </div>
       

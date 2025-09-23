@@ -9,6 +9,8 @@ from typing import Dict, List, Optional, Tuple
 import json
 
 
+# FootballPredictor will be imported separately to avoid circular imports
+
 class FeatureEngineering:
     """Create advanced features for match prediction"""
     

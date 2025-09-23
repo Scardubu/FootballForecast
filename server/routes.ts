@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { initializeWebSocket } from "./websocket";
 import {
   httpLogger,
   logger,
@@ -45,7 +46,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Apply required authentication to protected API routes (health and auth endpoints declared before this middleware)
   app.use('/api', createAuthMiddleware({ 
     required: true, 
-    skipPaths: ['/health', '/_client-status', '/auth'] 
+    skipPaths: ['/health', '/_client-status', '/auth', '/ml/health'] 
   }));
   
   // Mount focused routers for organized endpoint management
@@ -145,5 +146,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   logger.info('All routes and middleware configured successfully with centralized error handling');
 
   const httpServer = createServer(app);
+  
+  // Initialize WebSocket server for real-time updates
+  logger.info('Initializing WebSocket server for real-time updates');
+  initializeWebSocket(httpServer);
+  
   return httpServer;
 }

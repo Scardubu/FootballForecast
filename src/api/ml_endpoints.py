@@ -12,7 +12,8 @@ import os
 # Add src to path for imports
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
-from ml.feature_engineering import FootballPredictor, FeatureEngineering
+from ml.feature_engineering import FeatureEngineering
+from ml.predictor import FootballPredictor
 from scrapers.fbref_scraper import FBrefScraper
 
 
@@ -118,7 +119,8 @@ async def predict_batch_matches(requests: List[PredictionRequest]):
             prediction['explanation'] = generate_prediction_explanation(prediction)
             predictions.append(PredictionResponse(**prediction))
         
-        return {"predictions": predictions, "count": len(predictions)}
+        # Return predictions array to match Node.js client expectation
+        return predictions
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Batch prediction failed: {str(e)}")
@@ -193,7 +195,7 @@ async def get_model_status():
         
         return {
             "status": "ready",
-            "metadata": predictor.model_metadata,
+            "metadata": predictor.get_model_status(),
             "features_count": len(predictor.feature_names or [])
         }
         

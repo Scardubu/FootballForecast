@@ -112,8 +112,9 @@ export class MLServiceClient {
 
       const data = await response.json();
       
-      // Validate each prediction response
-      const validatedResponses = data.map((pred: any) => mlPredictionResponseSchema.parse(pred));
+      // Handle different response formats - FastAPI returns {predictions: [...]}
+      const predictionsArray = Array.isArray(data) ? data : data.predictions || [];
+      const validatedResponses = predictionsArray.map((pred: any) => mlPredictionResponseSchema.parse(pred));
       
       console.log(`✅ ML batch predictions successful: ${validatedResponses.length} predictions generated`);
       return validatedResponses;
