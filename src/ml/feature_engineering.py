@@ -57,7 +57,7 @@ class FeatureEngineering:
             ORDER BY scraped_at DESC 
             LIMIT 10
         """
-        matches_df = pd.read_sql_query(query, conn, params=(team_id, team_id))
+        matches_df = pd.read_sql_query(query, conn, params=[team_id, team_id])
         
         # Get team form data
         form_query = """
@@ -66,7 +66,7 @@ class FeatureEngineering:
             ORDER BY scraped_at DESC 
             LIMIT 1
         """
-        form_df = pd.read_sql_query(form_query, conn, params=(team_id,))
+        form_df = pd.read_sql_query(form_query, conn, params=[team_id])
         
         conn.close()
         
@@ -94,13 +94,13 @@ class FeatureEngineering:
         away_matches = matches_df[matches_df['away_team_id'] == team_id]
         
         # xG statistics
-        home_xg_for = home_matches['home_xg'].fillna(1.5).mean() if not home_matches.empty else 1.5
-        home_xg_against = home_matches['away_xg'].fillna(1.2).mean() if not home_matches.empty else 1.2
-        away_xg_for = away_matches['away_xg'].fillna(1.2).mean() if not away_matches.empty else 1.2
-        away_xg_against = away_matches['home_xg'].fillna(1.5).mean() if not away_matches.empty else 1.5
+        home_xg_for = pd.Series(home_matches['home_xg']).fillna(1.5).mean() if not home_matches.empty else 1.5
+        home_xg_against = pd.Series(home_matches['away_xg']).fillna(1.2).mean() if not home_matches.empty else 1.2
+        away_xg_for = pd.Series(away_matches['away_xg']).fillna(1.2).mean() if not away_matches.empty else 1.2
+        away_xg_against = pd.Series(away_matches['home_xg']).fillna(1.5).mean() if not away_matches.empty else 1.5
         
-        stats['avg_xg_for'] = np.mean([home_xg_for, away_xg_for])
-        stats['avg_xg_against'] = np.mean([home_xg_against, away_xg_against])
+        stats['avg_xg_for'] = float(np.mean([float(home_xg_for), float(away_xg_for)]))
+        stats['avg_xg_against'] = float(np.mean([float(home_xg_against), float(away_xg_against)]))
         stats['xg_difference'] = stats['avg_xg_for'] - stats['avg_xg_against']
         
         # Home/away splits
@@ -175,7 +175,7 @@ class FeatureEngineering:
             return 0.5
         
         values = {'W': 1.0, 'D': 0.5, 'L': 0.0}
-        return np.mean([values.get(char, 0.5) for char in form_string])
+        return float(np.mean([values.get(char, 0.5) for char in form_string]))
     
     def _create_h2h_features(self, home_team_id: int, away_team_id: int) -> Dict:
         """Create head-to-head features"""
@@ -191,7 +191,7 @@ class FeatureEngineering:
         """
         h2h_df = pd.read_sql_query(
             query, conn, 
-            params=(home_team_id, away_team_id, away_team_id, home_team_id)
+            params=[home_team_id, away_team_id, away_team_id, home_team_id]
         )
         
         conn.close()
@@ -250,7 +250,7 @@ class FeatureEngineering:
             ORDER BY scraped_at DESC 
             LIMIT 5
         """
-        home_matches = pd.read_sql_query(query, conn, params=(home_team_id,))
+        home_matches = pd.read_sql_query(query, conn, params=[home_team_id])
         
         conn.close()
         
@@ -284,7 +284,7 @@ class FeatureEngineering:
         """
         injuries_df = pd.read_sql_query(
             query, conn, 
-            params=(home_team_id, away_team_id)
+            params=[home_team_id, away_team_id]
         )
         
         conn.close()
@@ -357,7 +357,7 @@ class FeatureEngineering:
             ORDER BY sm.scraped_at
         """
         
-        matches_df = pd.read_sql_query(query, conn, params=(start_date, end_date))
+        matches_df = pd.read_sql_query(query, conn, params=[start_date, end_date])
         conn.close()
         
         if matches_df.empty:
@@ -368,11 +368,18 @@ class FeatureEngineering:
         labels = []
         
         for _, match in matches_df.iterrows():
-            if pd.isna(match['home_team_id']) or pd.isna(match['away_team_id']):
+            # Skip rows with null team IDs using scalar values
+            try:
+                home_team_val = match['home_team_id']
+                away_team_val = match['away_team_id'] 
+                if home_team_val is None or away_team_val is None or \
+                   str(home_team_val).lower() == 'nan' or str(away_team_val).lower() == 'nan':
+                    continue
+            except (KeyError, TypeError):
                 continue
                 
             features = self.create_match_features(
-                match['fixture_id'], 
+                int(match['fixture_id']), 
                 int(match['home_team_id']), 
                 int(match['away_team_id'])
             )
