@@ -3,18 +3,19 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/lib/auth-context";
-import type { Fixture, Team } from "@/lib/types";
+import { TeamDisplay } from "@/components/team-display";
+import type { Fixture, Team } from "@shared/schema";
 
 export function LiveMatches() {
   const { auth, isLoading: authLoading } = useAuth();
   
-  const { data: liveFixtures, isLoading } = useQuery({
+  const { data: liveFixtures, isLoading } = useQuery<Fixture[]>({
     queryKey: ["/api/fixtures/live"],
     refetchInterval: 15000, // Refetch every 15 seconds
     enabled: !authLoading && !!auth?.authenticated,
   });
 
-  const { data: teams } = useQuery({
+  const { data: teams } = useQuery<Team[]>({
     queryKey: ["/api/teams"],
     enabled: !authLoading && !!auth?.authenticated,
   });
@@ -70,8 +71,8 @@ export function LiveMatches() {
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {liveFixtures?.map((fixture: Fixture) => {
-          const homeTeam = getTeam(fixture.homeTeamId);
-          const awayTeam = getTeam(fixture.awayTeamId);
+          const homeTeam = fixture.homeTeamId ? getTeam(fixture.homeTeamId) : undefined;
+          const awayTeam = fixture.awayTeamId ? getTeam(fixture.awayTeamId) : undefined;
           const status = getStatusDisplay(fixture.status, fixture.elapsed);
           
           return (
@@ -90,25 +91,13 @@ export function LiveMatches() {
                 <div className="space-y-4">
                   {/* Home Team */}
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      {homeTeam?.logo ? (
-                        <img 
-                          src={homeTeam.logo} 
-                          alt={homeTeam.name}
-                          className="w-8 h-8 rounded-full object-cover"
-                          data-testid={`home-team-logo-${fixture.id}`}
-                        />
-                      ) : (
-                        <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
-                          <span className="text-white text-xs font-bold">
-                            {homeTeam?.name?.substring(0, 2).toUpperCase() || "HM"}
-                          </span>
-                        </div>
-                      )}
-                      <span className="font-semibold" data-testid={`home-team-name-${fixture.id}`}>
-                        {homeTeam?.name || "Home Team"}
-                      </span>
-                    </div>
+                    <TeamDisplay 
+                      team={homeTeam} 
+                      size="md"
+                      showName={true}
+                      showFlag={false}
+                      data-testid={`home-team-${fixture.id}`}
+                    />
                     <span className="text-2xl font-bold text-primary" data-testid={`home-score-${fixture.id}`}>
                       {fixture.homeScore ?? "-"}
                     </span>
@@ -116,25 +105,13 @@ export function LiveMatches() {
                   
                   {/* Away Team */}
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      {awayTeam?.logo ? (
-                        <img 
-                          src={awayTeam.logo} 
-                          alt={awayTeam.name}
-                          className="w-8 h-8 rounded-full object-cover"
-                          data-testid={`away-team-logo-${fixture.id}`}
-                        />
-                      ) : (
-                        <div className="w-8 h-8 bg-secondary rounded-full flex items-center justify-center">
-                          <span className="text-white text-xs font-bold">
-                            {awayTeam?.name?.substring(0, 2).toUpperCase() || "AW"}
-                          </span>
-                        </div>
-                      )}
-                      <span className="font-semibold" data-testid={`away-team-name-${fixture.id}`}>
-                        {awayTeam?.name || "Away Team"}
-                      </span>
-                    </div>
+                    <TeamDisplay 
+                      team={awayTeam} 
+                      size="md"
+                      showName={true}
+                      showFlag={false}
+                      data-testid={`away-team-${fixture.id}`}
+                    />
                     <span className="text-2xl font-bold text-primary" data-testid={`away-score-${fixture.id}`}>
                       {fixture.awayScore ?? "-"}
                     </span>

@@ -4,23 +4,24 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/lib/auth-context";
-import type { Fixture, Team, Prediction } from "@/lib/types";
+import { TeamDisplay, MatchTeamsDisplay } from "@/components/team-display";
+import type { Fixture, Team, Prediction } from "@shared/schema";
 
 export function PredictionsPanel() {
   const { auth, isLoading: authLoading } = useAuth();
   
-  const { data: fixtures, isLoading: fixturesLoading } = useQuery({
+  const { data: fixtures, isLoading: fixturesLoading } = useQuery<Fixture[]>({
     queryKey: ["/api/fixtures"],
     select: (data: Fixture[]) => data.filter(f => f.status === "NS" || f.status === "TBD").slice(0, 3),
     enabled: !authLoading && !!auth?.authenticated,
   });
 
-  const { data: teams } = useQuery({
+  const { data: teams } = useQuery<Team[]>({
     queryKey: ["/api/teams"],
     enabled: !authLoading && !!auth?.authenticated,
   });
 
-  const { data: predictions } = useQuery({
+  const { data: predictions } = useQuery<Prediction[]>({
     queryKey: ["/api/predictions"],
     enabled: !authLoading && !!auth?.authenticated,
   });
@@ -69,55 +70,21 @@ export function PredictionsPanel() {
       </div>
       
       {fixtures?.map((fixture: Fixture) => {
-        const homeTeam = getTeam(fixture.homeTeamId);
-        const awayTeam = getTeam(fixture.awayTeamId);
+        const homeTeam = fixture.homeTeamId ? getTeam(fixture.homeTeamId) : undefined;
+        const awayTeam = fixture.awayTeamId ? getTeam(fixture.awayTeamId) : undefined;
         const prediction = getPrediction(fixture.id);
         
         return (
           <Card key={fixture.id} data-testid={`prediction-card-${fixture.id}`}>
             <CardContent className="p-6">
               <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center space-x-4">
-                  <div className="flex items-center space-x-2">
-                    {homeTeam?.logo ? (
-                      <img 
-                        src={homeTeam.logo} 
-                        alt={homeTeam.name}
-                        className="w-10 h-10 rounded-full object-cover"
-                        data-testid={`prediction-home-logo-${fixture.id}`}
-                      />
-                    ) : (
-                      <div className="w-10 h-10 bg-primary rounded-full flex items-center justify-center">
-                        <span className="text-white text-sm font-bold">
-                          {homeTeam?.name?.substring(0, 2).toUpperCase() || "HM"}
-                        </span>
-                      </div>
-                    )}
-                    <span className="font-semibold" data-testid={`prediction-home-name-${fixture.id}`}>
-                      {homeTeam?.name || "Home Team"}
-                    </span>
-                  </div>
-                  <span className="text-muted-foreground">vs</span>
-                  <div className="flex items-center space-x-2">
-                    {awayTeam?.logo ? (
-                      <img 
-                        src={awayTeam.logo} 
-                        alt={awayTeam.name}
-                        className="w-10 h-10 rounded-full object-cover"
-                        data-testid={`prediction-away-logo-${fixture.id}`}
-                      />
-                    ) : (
-                      <div className="w-10 h-10 bg-secondary rounded-full flex items-center justify-center">
-                        <span className="text-white text-sm font-bold">
-                          {awayTeam?.name?.substring(0, 2).toUpperCase() || "AW"}
-                        </span>
-                      </div>
-                    )}
-                    <span className="font-semibold" data-testid={`prediction-away-name-${fixture.id}`}>
-                      {awayTeam?.name || "Away Team"}
-                    </span>
-                  </div>
-                </div>
+                <MatchTeamsDisplay
+                  homeTeam={homeTeam}
+                  awayTeam={awayTeam}
+                  size="lg"
+                  showFlags={false}
+                  className="flex-1"
+                />
                 <span className="text-sm text-muted-foreground" data-testid={`prediction-date-${fixture.id}`}>
                   {new Date(fixture.date).toLocaleDateString()}
                 </span>
@@ -235,7 +202,7 @@ export function PredictionsPanel() {
                       <div className="flex justify-between cursor-help">
                         <span className="text-muted-foreground">Model Version</span>
                         <span className="font-medium text-accent text-xs">
-                          {prediction?.mlModel || "v1.0"}
+                          v1.0
                         </span>
                       </div>
                     </TooltipTrigger>
@@ -252,8 +219,7 @@ export function PredictionsPanel() {
                     <div>
                       <div className="text-sm font-medium text-accent mb-1">AI Insight</div>
                       <div className="text-xs text-muted-foreground leading-relaxed">
-                        {prediction?.explanation || 
-                         `The AI model predicts a ${homeTeam?.name || "home"} win based on recent form analysis, expected goals differential, and home advantage factors.`}
+                        {`The AI model predicts a ${homeTeam?.name || "home"} win based on recent form analysis, expected goals differential, and home advantage factors.`}
                       </div>
                     </div>
                   </div>
@@ -263,24 +229,7 @@ export function PredictionsPanel() {
                 <div className="mt-3">
                   <div className="text-sm font-medium mb-2">Key Factors</div>
                   <div className="space-y-1">
-                    {(() => {
-                      try {
-                        const factors = prediction?.keyFactors ? JSON.parse(prediction.keyFactors) : [];
-                        if (factors.length > 0) {
-                          return factors.slice(0, 3).map((factor: any, index: number) => (
-                            <div key={index} className="flex items-center justify-between text-xs">
-                              <span className="text-muted-foreground">{factor.name}</span>
-                              <span className={`font-medium ${factor.impact === 'Positive' ? 'text-success' : 'text-destructive'}`}>
-                                {factor.impact === 'Positive' ? '+' : ''}{(factor.value * 100).toFixed(0)}%
-                              </span>
-                            </div>
-                          ));
-                        }
-                      } catch (e) {
-                        // Fallback to default factors
-                      }
-                      
-                      return [
+                    {[
                         { name: "Home Advantage", value: "+15%", positive: true },
                         { name: "Recent Form", value: "+8%", positive: true },
                         { name: "xG Difference", value: "+12%", positive: true }
@@ -291,8 +240,7 @@ export function PredictionsPanel() {
                             {factor.value}
                           </span>
                         </div>
-                      ));
-                    })()}
+                      ))}
                   </div>
                 </div>
               </div>

@@ -8,7 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/lib/auth-context";
-import type { Fixture, Team, League } from "@/lib/types";
+import { TeamDisplay, MatchTeamsDisplay } from "@/components/team-display";
+import type { Fixture, Team, League } from "@shared/schema";
 
 interface FixtureSelectorProps {
   onFixtureSelect: (fixture: Fixture) => void;
@@ -30,7 +31,7 @@ export function FixtureSelector({ onFixtureSelect, selectedFixture }: FixtureSel
     { id: "94", name: "Primeira Liga", country: "Portugal", flag: "🇵🇹" },
   ];
 
-  const { data: fixtures, isLoading } = useQuery({
+  const { data: fixtures, isLoading } = useQuery<Fixture[]>({
     queryKey: [`/api/fixtures?league=${selectedLeague}`],
     enabled: !!selectedLeague && !authLoading && !!auth?.authenticated,
     select: (data: Fixture[]) => {
@@ -45,10 +46,10 @@ export function FixtureSelector({ onFixtureSelect, selectedFixture }: FixtureSel
       }
       
       // Filter by search term
-      if (searchTerm) {
+      if (searchTerm && teams) {
         filtered = filtered.filter(f => 
-          teams?.find(t => t.id === f.homeTeamId)?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          teams?.find(t => t.id === f.awayTeamId)?.name.toLowerCase().includes(searchTerm.toLowerCase())
+          teams.find(t => t.id === f.homeTeamId)?.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          teams.find(t => t.id === f.awayTeamId)?.name.toLowerCase().includes(searchTerm.toLowerCase())
         );
       }
       
@@ -56,7 +57,7 @@ export function FixtureSelector({ onFixtureSelect, selectedFixture }: FixtureSel
     }
   });
 
-  const { data: teams } = useQuery({
+  const { data: teams } = useQuery<Team[]>({
     queryKey: ["/api/teams"],
     enabled: !authLoading && !!auth?.authenticated,
   });
@@ -66,8 +67,8 @@ export function FixtureSelector({ onFixtureSelect, selectedFixture }: FixtureSel
   };
 
   const getFixtureDisplayData = (fixture: Fixture) => {
-    const homeTeam = getTeam(fixture.homeTeamId);
-    const awayTeam = getTeam(fixture.awayTeamId);
+    const homeTeam = fixture.homeTeamId ? getTeam(fixture.homeTeamId) : undefined;
+    const awayTeam = fixture.awayTeamId ? getTeam(fixture.awayTeamId) : undefined;
     const matchDate = new Date(fixture.date);
     
     return {
@@ -180,50 +181,14 @@ export function FixtureSelector({ onFixtureSelect, selectedFixture }: FixtureSel
                 data-testid={`fixture-${fixture.id}`}
               >
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-4 flex-1">
-                    {/* Home Team */}
-                    <div className="flex items-center space-x-2 flex-1">
-                      {homeTeam?.logo ? (
-                        <img 
-                          src={homeTeam.logo} 
-                          alt={homeTeam.name}
-                          className="w-6 h-6 rounded-full object-cover"
-                          data-testid={`home-logo-${fixture.id}`}
-                        />
-                      ) : (
-                        <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center">
-                          <span className="text-white text-xs font-bold">
-                            {homeTeam?.name?.substring(0, 2).toUpperCase() || "HM"}
-                          </span>
-                        </div>
-                      )}
-                      <span className="font-medium text-sm" data-testid={`home-name-${fixture.id}`}>
-                        {homeTeam?.name || "Home Team"}
-                      </span>
-                    </div>
-
-                    <span className="text-muted-foreground text-sm">vs</span>
-
-                    {/* Away Team */}
-                    <div className="flex items-center space-x-2 flex-1">
-                      {awayTeam?.logo ? (
-                        <img 
-                          src={awayTeam.logo} 
-                          alt={awayTeam.name}
-                          className="w-6 h-6 rounded-full object-cover"
-                          data-testid={`away-logo-${fixture.id}`}
-                        />
-                      ) : (
-                        <div className="w-6 h-6 bg-secondary rounded-full flex items-center justify-center">
-                          <span className="text-white text-xs font-bold">
-                            {awayTeam?.name?.substring(0, 2).toUpperCase() || "AW"}
-                          </span>
-                        </div>
-                      )}
-                      <span className="font-medium text-sm" data-testid={`away-name-${fixture.id}`}>
-                        {awayTeam?.name || "Away Team"}
-                      </span>
-                    </div>
+                  <div className="flex items-center flex-1">
+                    <MatchTeamsDisplay
+                      homeTeam={homeTeam}
+                      awayTeam={awayTeam}
+                      size="sm"
+                      showFlags={false}
+                      className="flex-1"
+                    />
                   </div>
 
                   {/* Match Info & Prediction Preview */}
