@@ -1,44 +1,14 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { scrapingScheduler } from "./scraping-scheduler";
+import { apiFootballClient } from "./services/apiFootballClient";
 import { z } from "zod";
 
-const API_FOOTBALL_KEY = process.env.API_FOOTBALL_KEY || process.env.RAPIDAPI_KEY || "your-api-key";
-const API_FOOTBALL_HOST = "v3.football.api-sports.io";
-
-// API-Football service functions
+// Legacy function wrapper for backward compatibility during migration
 async function fetchFromAPIFootball(endpoint: string) {
-  const response = await fetch(`https://${API_FOOTBALL_HOST}/${endpoint}`, {
-    headers: {
-      'X-RapidAPI-Key': API_FOOTBALL_KEY,
-      'X-RapidAPI-Host': API_FOOTBALL_HOST
-    }
-  });
-  
-  if (!response.ok) {
-    throw new Error(`API-Football error: ${response.status}`);
-  }
-  
-  const data = await response.json();
-  
-  // Check for API limit and access errors
-  if (data.errors) {
-    if (data.errors.requests) {
-      console.warn('⚠️ API-Football request limit reached:', data.errors.requests);
-      throw new Error(`API_LIMIT_REACHED: ${data.errors.requests}`);
-    }
-    if (data.errors.plan) {
-      console.warn('⚠️ API-Football plan limitation:', data.errors.plan);
-      throw new Error(`API_PLAN_LIMIT: ${data.errors.plan}`);
-    }
-  }
-  
-  // Check for empty response
-  if (!data.response || data.response.length === 0) {
-    throw new Error('API_EMPTY_RESPONSE: No data returned from API');
-  }
-  
-  return data;
+  const response = await apiFootballClient.request(endpoint);
+  return response;
 }
 
 async function updateLiveFixtures() {

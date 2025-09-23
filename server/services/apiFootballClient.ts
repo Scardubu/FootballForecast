@@ -1,0 +1,339 @@
+/**
+ * Resilient API-Football client with retry logic, caching, and circuit breaker
+ */
+
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+  ttl: number;
+}
+
+interface CircuitBreakerState {
+  failures: number;
+  lastFailureTime: number;
+  state: 'CLOSED' | 'OPEN' | 'HALF_OPEN';
+  halfOpenTrials: number;
+}
+
+interface ApiFootballResponse<T> {
+  get: string;
+  parameters: Record<string, string>;
+  errors: Record<string, string> | [];
+  results: number;
+  paging: {
+    current: number;
+    total: number;
+  };
+  response: T;
+}
+
+export class ApiFootballClient {
+  private readonly apiKey: string;
+  private readonly baseUrl = 'https://v3.football.api-sports.io';
+  private readonly cache = new Map<string, CacheEntry<any>>();
+  private readonly circuitBreaker: CircuitBreakerState = {
+    failures: 0,
+    lastFailureTime: 0,
+    state: 'CLOSED',
+    halfOpenTrials: 0
+  };
+  
+  // Circuit breaker configuration
+  private readonly maxFailures = 5;
+  private readonly openTimeoutMs = 60000; // 1 minute
+  private readonly halfOpenMaxCalls = 3;
+  
+  // Retry configuration
+  private readonly maxRetries = 3;
+  private readonly baseDelayMs = 1000;
+  private readonly maxDelayMs = 30000;
+  
+  // Cache TTL configuration (in milliseconds)
+  private readonly cacheTtls = {
+    'fixtures?live=all': 30000, // 30 seconds for live fixtures
+    'standings': 3600000, // 1 hour for standings
+    'fixtures': 1800000, // 30 minutes for fixtures
+    'predictions': 1800000, // 30 minutes for predictions
+    'teams': 86400000 // 24 hours for team data
+  };
+
+  constructor(apiKey?: string) {
+    this.apiKey = apiKey || process.env.API_FOOTBALL_KEY || process.env.RAPIDAPI_KEY || '';
+    
+    if (!this.apiKey || this.apiKey === 'your-api-key') {
+      console.warn('⚠️ API-Football: No valid API key configured. Using fallback mode.');
+    }
+    
+    // Clean up expired cache entries every 5 minutes
+    setInterval(() => this.cleanupCache(), 300000);
+  }
+
+  /**
+   * Make a resilient API request with caching, retries, and circuit breaker
+   */
+  async request<T>(endpoint: string): Promise<ApiFootballResponse<T>> {
+    const cacheKey = this.getCacheKey(endpoint);
+    
+    // Check circuit breaker state
+    if (!this.canMakeRequest()) {
+      console.log(`🚨 Circuit breaker OPEN, using cached data for ${endpoint}`);
+      return this.getCachedDataOrFallback<T>(cacheKey, endpoint);
+    }
+    
+    // Try cache first
+    const cachedData = this.getCachedData<T>(cacheKey);
+    if (cachedData) {
+      console.log(`📦 Cache hit for ${endpoint}`);
+      return cachedData;
+    }
+    
+    // Make request with retry logic
+    return this.makeRequestWithRetry<T>(endpoint, cacheKey);
+  }
+
+  private async makeRequestWithRetry<T>(endpoint: string, cacheKey: string, attempt = 1): Promise<ApiFootballResponse<T>> {
+    try {
+      console.log(`🌐 API request attempt ${attempt}/${this.maxRetries + 1}: ${endpoint}`);
+      
+      const response = await fetch(`${this.baseUrl}/${endpoint}`, {
+        headers: {
+          'X-RapidAPI-Key': this.apiKey,
+          'X-RapidAPI-Host': 'v3.football.api-sports.io'
+        },
+        signal: AbortSignal.timeout(10000) // 10 second timeout
+      });
+
+      if (!response.ok) {
+        if (response.status === 429) {
+          // Rate limited - implement exponential backoff
+          const retryAfter = response.headers.get('retry-after');
+          const delayMs = retryAfter ? parseInt(retryAfter) * 1000 : this.calculateBackoffDelay(attempt);
+          
+          if (attempt <= this.maxRetries) {
+            console.log(`⏳ Rate limited, retrying after ${delayMs}ms (attempt ${attempt})`);
+            await this.sleep(delayMs);
+            return this.makeRequestWithRetry<T>(endpoint, cacheKey, attempt + 1);
+          }
+        }
+        
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data: ApiFootballResponse<T> = await response.json();
+      
+      // Check for API-specific errors (both object and array formats)
+      if (data.errors) {
+        // Handle object format: { errors: { requests: "msg", plan: "msg" } }
+        if (typeof data.errors === 'object' && !Array.isArray(data.errors)) {
+          if (data.errors.requests) {
+            console.warn('⚠️ API-Football request limit reached:', data.errors.requests);
+            throw new Error(`API_LIMIT_REACHED: ${data.errors.requests}`);
+          }
+          if (data.errors.plan) {
+            console.warn('⚠️ API-Football plan limitation:', data.errors.plan);
+            throw new Error(`API_PLAN_LIMIT: ${data.errors.plan}`);
+          }
+          if (data.errors.rateLimit) {
+            console.warn('⚠️ API-Football rate limit:', data.errors.rateLimit);
+            throw new Error(`API_RATE_LIMIT: ${data.errors.rateLimit}`);
+          }
+        }
+        // Handle array format: { errors: ["error_message"] }
+        else if (Array.isArray(data.errors) && data.errors.length > 0) {
+          const errorMsg = data.errors[0];
+          if (typeof errorMsg === 'string') {
+            if (errorMsg.includes('requests') || errorMsg.includes('limit')) {
+              throw new Error(`API_LIMIT_REACHED: ${errorMsg}`);
+            }
+            throw new Error(`API_ERROR: ${errorMsg}`);
+          }
+        }
+      }
+
+      // Check for empty response
+      if (!data.response || (Array.isArray(data.response) && data.response.length === 0)) {
+        throw new Error('API_EMPTY_RESPONSE: No data returned from API');
+      }
+
+      // Success - reset circuit breaker and cache result
+      this.recordSuccess();
+      this.cacheData(cacheKey, data, endpoint);
+      
+      return data;
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error(`❌ API request failed (attempt ${attempt}): ${errorMessage}`);
+      
+      // Record failure for circuit breaker
+      this.recordFailure();
+      
+      // Retry logic for transient errors
+      if (attempt <= this.maxRetries && this.shouldRetry(errorMessage)) {
+        const delayMs = this.calculateBackoffDelay(attempt);
+        console.log(`🔄 Retrying in ${delayMs}ms...`);
+        await this.sleep(delayMs);
+        return this.makeRequestWithRetry<T>(endpoint, cacheKey, attempt + 1);
+      }
+      
+      // Final attempt failed - try fallback
+      console.log(`💾 All retries failed, attempting fallback for ${endpoint}`);
+      return this.getCachedDataOrFallback<T>(cacheKey, endpoint);
+    }
+  }
+
+  private canMakeRequest(): boolean {
+    const now = Date.now();
+    
+    switch (this.circuitBreaker.state) {
+      case 'CLOSED':
+        return true;
+      case 'OPEN':
+        if (now - this.circuitBreaker.lastFailureTime > this.openTimeoutMs) {
+          console.log('🔄 Circuit breaker transitioning to HALF_OPEN');
+          this.circuitBreaker.state = 'HALF_OPEN';
+          this.circuitBreaker.halfOpenTrials = 0;
+          return true;
+        }
+        return false;
+      case 'HALF_OPEN':
+        return this.circuitBreaker.halfOpenTrials < this.halfOpenMaxCalls;
+      default:
+        return false;
+    }
+  }
+
+  private recordSuccess(): void {
+    if (this.circuitBreaker.state !== 'CLOSED') {
+      console.log('✅ Circuit breaker reset to CLOSED after successful request');
+    }
+    this.circuitBreaker.failures = 0;
+    this.circuitBreaker.halfOpenTrials = 0;
+    this.circuitBreaker.state = 'CLOSED';
+  }
+
+  private recordFailure(): void {
+    if (this.circuitBreaker.state === 'HALF_OPEN') {
+      console.log('🚨 Circuit breaker OPEN after failure in HALF_OPEN state');
+      this.circuitBreaker.state = 'OPEN';
+      this.circuitBreaker.lastFailureTime = Date.now();
+    } else {
+      this.circuitBreaker.failures++;
+      this.circuitBreaker.halfOpenTrials++;
+      this.circuitBreaker.lastFailureTime = Date.now();
+      
+      if (this.circuitBreaker.failures >= this.maxFailures && this.circuitBreaker.state === 'CLOSED') {
+        console.log(`🚨 Circuit breaker OPEN after ${this.circuitBreaker.failures} failures`);
+        this.circuitBreaker.state = 'OPEN';
+      }
+    }
+  }
+
+  private shouldRetry(errorMessage: string): boolean {
+    // Don't retry on plan limits or permanent errors
+    return !errorMessage.includes('API_PLAN_LIMIT') && 
+           !errorMessage.includes('401') && 
+           !errorMessage.includes('403');
+  }
+
+  private calculateBackoffDelay(attempt: number): number {
+    const exponentialDelay = this.baseDelayMs * Math.pow(2, attempt - 1);
+    const jitter = Math.random() * 1000; // Add jitter to prevent thundering herd
+    return Math.min(exponentialDelay + jitter, this.maxDelayMs);
+  }
+
+  private getCacheKey(endpoint: string): string {
+    return `api_football_${endpoint.replace(/[^\w]/g, '_')}`;
+  }
+
+  private getCachedData<T>(cacheKey: string): ApiFootballResponse<T> | null {
+    const entry = this.cache.get(cacheKey);
+    if (entry && Date.now() - entry.timestamp < entry.ttl) {
+      return entry.data;
+    }
+    return null;
+  }
+
+  private cacheData<T>(cacheKey: string, data: ApiFootballResponse<T>, endpoint: string): void {
+    const ttl = this.getTtlForEndpoint(endpoint);
+    this.cache.set(cacheKey, {
+      data,
+      timestamp: Date.now(),
+      ttl
+    });
+  }
+
+  private getTtlForEndpoint(endpoint: string): number {
+    for (const [pattern, ttl] of Object.entries(this.cacheTtls)) {
+      if (endpoint.includes(pattern)) {
+        return ttl;
+      }
+    }
+    return 300000; // Default 5 minutes
+  }
+
+  private async getCachedDataOrFallback<T>(cacheKey: string, endpoint: string): Promise<ApiFootballResponse<T>> {
+    // Try stale cache first
+    const staleEntry = this.cache.get(cacheKey);
+    if (staleEntry) {
+      console.log(`📦 Using stale cache for ${endpoint}`);
+      return staleEntry.data;
+    }
+    
+    // Generate fallback response
+    console.log(`🎭 Generating fallback response for ${endpoint}`);
+    return {
+      get: endpoint,
+      parameters: {},
+      errors: [],
+      results: 0,
+      paging: { current: 1, total: 1 },
+      response: [] as unknown as T
+    };
+  }
+
+  private cleanupCache(): void {
+    const now = Date.now();
+    let cleanedCount = 0;
+    
+    for (const [key, entry] of this.cache.entries()) {
+      if (now - entry.timestamp > entry.ttl) {
+        this.cache.delete(key);
+        cleanedCount++;
+      }
+    }
+    
+    if (cleanedCount > 0) {
+      console.log(`🧹 Cleaned up ${cleanedCount} expired cache entries`);
+    }
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Get client status for monitoring
+   */
+  getStatus() {
+    return {
+      circuitBreaker: {
+        state: this.circuitBreaker.state,
+        failures: this.circuitBreaker.failures,
+        lastFailureTime: this.circuitBreaker.lastFailureTime
+      },
+      cache: {
+        size: this.cache.size,
+        entries: Array.from(this.cache.keys())
+      },
+      config: {
+        maxFailures: this.maxFailures,
+        openTimeoutMs: this.openTimeoutMs,
+        maxRetries: this.maxRetries
+      }
+    };
+  }
+}
+
+// Export singleton instance
+export const apiFootballClient = new ApiFootballClient();
