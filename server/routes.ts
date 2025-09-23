@@ -112,6 +112,17 @@ async function updateLiveFixtures() {
         if (match.fixture.status.short === "FT" || match.fixture.status.short === "NS") {
           await generateMLPredictions(match.fixture.id, homeTeam.id, awayTeam.id);
         }
+        
+        // Schedule scraping for live or upcoming fixtures
+        if (match.fixture.status.short === "LIVE" || match.fixture.status.short === "NS") {
+          const priority = match.fixture.status.short === "LIVE" ? 8 : 6; // Higher priority for live matches
+          await scrapingScheduler.scheduleMatchDataScraping(
+            match.fixture.id,
+            homeTeam.name,
+            awayTeam.name,
+            priority
+          );
+        }
       }
     }
   } catch (error) {
@@ -695,10 +706,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       let authToken: string | undefined;
-      if (authHeader?.startsWith('Bearer ')) {
-        authToken = authHeader.substring(7);
-      } else if (typeof authHeader === 'string') {
-        authToken = authHeader;
+      const authHeaderStr = Array.isArray(authHeader) ? authHeader[0] : authHeader;
+      if (authHeaderStr?.startsWith('Bearer ')) {
+        authToken = authHeaderStr.substring(7);
+      } else if (typeof authHeaderStr === 'string') {
+        authToken = authHeaderStr;
       }
       
       if (!authToken || authToken !== expectedToken) {
@@ -784,6 +796,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Scheduler monitoring endpoint for production observability
+  app.get("/api/scheduler/status", async (req, res) => {
+    try {
+      const status = scrapingScheduler.getStatus();
+      res.json({
+        scheduler: status,
+        uptime: process.uptime(),
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error("Error fetching scheduler status:", error);
+      res.status(500).json({ error: "Failed to fetch scheduler status" });
+    }
+  });
+
   // Sample data seeding function for when API limits are reached
   async function seedSampleStandingsData(leagueId: number) {
   const sampleTeams = {
@@ -832,10 +859,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     form: 'WWDWL'
   }));
 
-  // Store sample data
-  await storage.updateStandings(standingsData);
-  
-  // Store team data
+  // Store team data FIRST to avoid FK violations
   for (const team of teams) {
     await storage.updateTeam({
       id: team.id,
@@ -847,6 +871,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       founded: null
     });
   }
+  
+  // Now store standings after teams exist
+  await storage.updateStandings(standingsData);
   
   console.log(`✅ Sample data seeded successfully for league ${leagueId}`);
 }

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, decimal, timestamp, boolean, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, decimal, timestamp, boolean, jsonb, unique, index } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -46,7 +46,12 @@ export const fixtures = pgTable("fixtures", {
   awayScore: integer("away_score"),
   halftimeHomeScore: integer("halftime_home_score"),
   halftimeAwayScore: integer("halftime_away_score"),
-});
+}, (table) => ({
+  // Indexes for performance on common queries
+  fixturesStatusIdx: index("fixtures_status_idx").on(table.status),
+  fixturesLeagueIdx: index("fixtures_league_idx").on(table.leagueId),
+  fixturesDateIdx: index("fixtures_date_idx").on(table.date),
+}));
 
 export const predictions = pgTable("predictions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -60,7 +65,10 @@ export const predictions = pgTable("predictions", {
   over25Goals: decimal("over_25_goals", { precision: 5, scale: 2 }),
   confidence: decimal("confidence", { precision: 5, scale: 2 }),
   createdAt: timestamp("created_at").default(sql`now()`),
-});
+}, (table) => ({
+  // Index for performance on fixture-based queries
+  predictionsFixtureIdx: index("predictions_fixture_idx").on(table.fixtureId),
+}));
 
 export const standings = pgTable("standings", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -76,7 +84,10 @@ export const standings = pgTable("standings", {
   goalsAgainst: integer("goals_against").notNull(),
   goalDifference: integer("goal_difference").notNull(),
   form: text("form"),
-});
+}, (table) => ({
+  // Composite unique constraint to prevent duplicate standings entries
+  standingsUnique: unique("standings_league_team_unique").on(table.leagueId, table.teamId),
+}));
 
 export const teamStats = pgTable("team_stats", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -90,7 +101,10 @@ export const teamStats = pgTable("team_stats", {
   cleanSheets: integer("clean_sheets"),
   form: text("form"),
   lastUpdated: timestamp("last_updated").default(sql`now()`),
-});
+}, (table) => ({
+  // Composite unique constraint to prevent duplicate team stats
+  teamStatsUnique: unique("team_stats_team_league_unique").on(table.teamId, table.leagueId),
+}));
 
 // Dedicated table for scraped data - isolated from core tables to avoid FK issues
 export const scrapedData = pgTable("scraped_data", {
@@ -103,7 +117,12 @@ export const scrapedData = pgTable("scraped_data", {
   confidence: decimal("confidence", { precision: 5, scale: 2 }).notNull(),
   scrapedAt: timestamp("scraped_at").notNull(),
   createdAt: timestamp("created_at").default(sql`now()`),
-});
+}, (table) => ({
+  // Composite unique constraint for idempotent scraping - prevents duplicate scraped entries
+  scrapedDataUnique: unique("scraped_data_unique").on(table.source, table.dataType, table.fixtureId, table.teamId),
+  // Index for performance on common queries
+  scrapedDataSourceTypeIdx: index("scraped_data_source_type_idx").on(table.source, table.dataType),
+}));
 
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,

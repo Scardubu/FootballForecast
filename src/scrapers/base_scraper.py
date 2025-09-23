@@ -13,6 +13,7 @@ from playwright.async_api import async_playwright, Page, BrowserContext, Browser
 from tenacity import retry, stop_after_attempt, wait_exponential
 import functools
 import os
+import aiohttp
 
 
 @dataclass
@@ -211,7 +212,7 @@ class PlaywrightScraper:
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
     async def _make_request(self, url: str) -> Optional[Page]:
         """Make request using Playwright with stealth mode"""
-        self._respect_rate_limit()
+        await self._respect_rate_limit()
         
         try:
             await self._init_browser()
@@ -326,6 +327,57 @@ class PlaywrightScraper:
         
         return None
     
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=2, min=5, max=60)
+    )
+    async def persist_scraped_data(self, scraped_data: ScrapedData) -> bool:
+        """Persist scraped data to API with authentication and retry logic"""
+        api_url = os.getenv('API_BASE_URL', 'http://localhost:5000')
+        bearer_token = os.getenv('SCRAPER_BEARER_TOKEN')
+        
+        if not bearer_token:
+            print("⚠️ Warning: SCRAPER_BEARER_TOKEN not set, cannot persist scraped data")
+            return False
+        
+        headers = {
+            'Authorization': f'Bearer {bearer_token}',
+            'Content-Type': 'application/json'
+        }
+        
+        # Convert ScrapedData to JSON payload
+        payload = {
+            'source': scraped_data.source,
+            'dataType': scraped_data.data_type,
+            'fixtureId': scraped_data.fixture_id,
+            'teamId': scraped_data.team_id,
+            'data': scraped_data.data,
+            'scrapedAt': scraped_data.scraped_at,
+            'confidence': scraped_data.confidence
+        }
+        
+        try:
+            timeout = aiohttp.ClientTimeout(total=30)  # 30 second timeout
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.post(f'{api_url}/api/scraped-data', 
+                                      json=payload, 
+                                      headers=headers) as response:
+                    
+                    if response.status == 201:
+                        print(f"✅ Successfully persisted {scraped_data.source} data for fixture {scraped_data.fixture_id}")
+                        return True
+                    elif response.status == 401:
+                        print(f"❌ Authentication failed when persisting {scraped_data.source} data")
+                        return False
+                    else:
+                        error_text = await response.text()
+                        print(f"❌ Failed to persist {scraped_data.source} data: {response.status} - {error_text}")
+                        raise aiohttp.ClientError(f"HTTP {response.status}: {error_text}")
+                        
+        except Exception as e:
+            print(f"❌ Error persisting {scraped_data.source} data: {e}")
+            raise  # Re-raise to trigger retry
+
     async def cleanup(self):
         """Cleanup Playwright resources"""
         try:

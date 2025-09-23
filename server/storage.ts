@@ -176,7 +176,9 @@ export class MemStorage implements IStorage {
     const scrapedData: ScrapedData = { 
       ...data, 
       id, 
-      createdAt: new Date() 
+      createdAt: new Date(),
+      fixtureId: data.fixtureId ?? null,
+      teamId: data.teamId ?? null
     };
     this.scrapedData.set(id, scrapedData);
     return scrapedData;

@@ -3,6 +3,9 @@ Scraper Manager - Orchestrates all scrapers for data collection
 """
 import asyncio
 import time
+import argparse
+import json
+import sys
 from typing import List, Dict, Optional
 from datetime import datetime
 from .fbref_scraper import FBrefScraper
@@ -34,8 +37,8 @@ class ScraperManager:
             results['fbref_xg'] = fbref_data
             
             if fbref_data:
-                if hasattr(fbref_data, 'save_to_database'):
-                    await fbref_data.save_to_database()
+                # Persist scraped data to API
+                await self.scrapers['fbref'].persist_scraped_data(fbref_data)
                 print(f"✅ FBref xG data: confidence {fbref_data.confidence}")
             else:
                 print("❌ FBref xG scraping failed")
@@ -53,8 +56,8 @@ class ScraperManager:
             results['whoscored_insights'] = whoscored_data
             
             if whoscored_data:
-                if hasattr(whoscored_data, 'save_to_database'):
-                    await whoscored_data.save_to_database()
+                # Persist scraped data to API
+                await self.scrapers['whoscored'].persist_scraped_data(whoscored_data)
                 print(f"✅ WhoScored insights: confidence {whoscored_data.confidence}")
             else:
                 print("❌ WhoScored insights scraping failed")
@@ -77,8 +80,8 @@ class ScraperManager:
             results['fbref_form'] = fbref_form
             
             if fbref_form:
-                if hasattr(fbref_form, 'save_to_database'):
-                    await fbref_form.save_to_database()
+                # Persist scraped data to API
+                await self.scrapers['fbref'].persist_scraped_data(fbref_form)
                 print(f"✅ FBref form data: confidence {fbref_form.confidence}")
             else:
                 print("❌ FBref form scraping failed")
@@ -96,8 +99,8 @@ class ScraperManager:
             results['whoscored_ratings'] = whoscored_ratings
             
             if whoscored_ratings:
-                if hasattr(whoscored_ratings, 'save_to_database'):
-                    await whoscored_ratings.save_to_database()
+                # Persist scraped data to API
+                await self.scrapers['whoscored'].persist_scraped_data(whoscored_ratings)
                 print(f"✅ WhoScored ratings: confidence {whoscored_ratings.confidence}")
             else:
                 print("❌ WhoScored ratings scraping failed")
