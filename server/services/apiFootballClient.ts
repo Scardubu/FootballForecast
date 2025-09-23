@@ -2,6 +2,8 @@
  * Resilient API-Football client with retry logic, caching, and circuit breaker
  */
 
+import { api } from '../config';
+
 interface CacheEntry<T> {
   data: T;
   timestamp: number;
@@ -58,11 +60,11 @@ export class ApiFootballClient {
   };
 
   constructor(apiKey?: string) {
-    this.apiKey = apiKey || process.env.API_FOOTBALL_KEY || process.env.RAPIDAPI_KEY || '';
+    // Use centralized config with secure validation
+    this.apiKey = apiKey || api.footballApiKey;
     
-    if (!this.apiKey || this.apiKey === 'your-api-key') {
-      console.warn('⚠️ API-Football: No valid API key configured. Using fallback mode.');
-    }
+    // Configuration validation is handled by centralized config
+    console.log('✅ API-Football client initialized with secure configuration');
     
     // Clean up expired cache entries every 5 minutes
     setInterval(() => this.cleanupCache(), 300000);

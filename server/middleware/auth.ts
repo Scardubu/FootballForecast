@@ -5,6 +5,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import logger from './logger';
 import { AppError } from './errorHandler';
+import { auth } from '../config';
 
 interface AuthenticatedRequest extends Request {
   user?: {
@@ -12,8 +13,6 @@ interface AuthenticatedRequest extends Request {
     token: string;
   };
 }
-
-const VALID_BEARER_TOKEN = process.env.API_BEARER_TOKEN || process.env.AUTH_TOKEN || 'dev-token-12345';
 
 /**
  * Authentication middleware - validates Bearer tokens
@@ -36,7 +35,7 @@ export function authenticateToken(req: AuthenticatedRequest, res: Response, next
     ));
   }
 
-  if (token !== VALID_BEARER_TOKEN) {
+  if (token !== auth.bearerToken) {
     logger.warn({ 
       requestId: req.id,
       ip: req.ip,

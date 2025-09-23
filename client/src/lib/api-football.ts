@@ -1,4 +1,14 @@
-const API_FOOTBALL_KEY = import.meta.env.VITE_API_FOOTBALL_KEY || "your-api-key";
+// Secure API key validation - fail fast if not properly configured
+const API_FOOTBALL_KEY = (() => {
+  const key = import.meta.env.VITE_API_FOOTBALL_KEY;
+  if (!key || key === "your-api-key" || key.length < 10) {
+    throw new Error(
+      '🔴 VITE_API_FOOTBALL_KEY is not properly configured. ' +
+      'Please set a valid API key in your environment variables or Replit Secrets.'
+    );
+  }
+  return key;
+})();
 const API_FOOTBALL_HOST = "v3.football.api-sports.io";
 
 export interface APIFootballResponse<T> {
