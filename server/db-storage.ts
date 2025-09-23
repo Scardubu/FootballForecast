@@ -1,6 +1,6 @@
 import { drizzle } from "drizzle-orm/neon-http";
 import { neon } from "@neondatabase/serverless";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, sql, inArray } from "drizzle-orm";
 import type { IStorage } from "./storage.ts";
 import { 
   users, leagues, teams, fixtures, predictions, standings, teamStats, scrapedData,
@@ -8,8 +8,8 @@ import {
   type Standing, type TeamStats, type InsertUser, type ScrapedData, type InsertScrapedData
 } from "../shared/schema.ts";
 
-const sql = neon(process.env.DATABASE_URL!);
-const db = drizzle(sql);
+const client = neon(process.env.DATABASE_URL!);
+const db = drizzle(client);
 
 export class DatabaseStorage implements IStorage {
   
@@ -39,18 +39,41 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateLeague(league: League): Promise<League> {
-    const existing = await this.getLeague(league.id);
+    const inserted = await db.insert(leagues)
+      .values(league)
+      .onConflictDoUpdate({
+        target: leagues.id,
+        set: {
+          name: league.name,
+          country: league.country,
+          logo: league.logo,
+          flag: league.flag,
+          season: league.season,
+          type: league.type
+        }
+      })
+      .returning();
+    return inserted[0];
+  }
+  
+  async updateLeagues(leagueArray: League[]): Promise<League[]> {
+    if (leagueArray.length === 0) return [];
     
-    if (existing) {
-      const updated = await db.update(leagues)
-        .set(league)
-        .where(eq(leagues.id, league.id))
-        .returning();
-      return updated[0];
-    } else {
-      const inserted = await db.insert(leagues).values(league).returning();
-      return inserted[0];
-    }
+    const inserted = await db.insert(leagues)
+      .values(leagueArray)
+      .onConflictDoUpdate({
+        target: leagues.id,
+        set: {
+          name: sql`excluded.name`,
+          country: sql`excluded.country`,
+          logo: sql`excluded.logo`,
+          flag: sql`excluded.flag`, 
+          season: sql`excluded.season`,
+          type: sql`excluded.type`
+        }
+      })
+      .returning();
+    return inserted;
   }
 
   async getTeams(): Promise<Team[]> {
@@ -63,23 +86,46 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateTeam(team: Team): Promise<Team> {
-    const existing = await this.getTeam(team.id);
+    const inserted = await db.insert(teams)
+      .values(team)
+      .onConflictDoUpdate({
+        target: teams.id,
+        set: {
+          name: team.name,
+          code: team.code,
+          country: team.country,
+          founded: team.founded,
+          national: team.national,
+          logo: team.logo
+        }
+      })
+      .returning();
+    return inserted[0];
+  }
+  
+  async updateTeams(teamArray: Team[]): Promise<Team[]> {
+    if (teamArray.length === 0) return [];
     
-    if (existing) {
-      const updated = await db.update(teams)
-        .set(team)
-        .where(eq(teams.id, team.id))
-        .returning();
-      return updated[0];
-    } else {
-      const inserted = await db.insert(teams).values(team).returning();
-      return inserted[0];
-    }
+    const inserted = await db.insert(teams)
+      .values(teamArray)
+      .onConflictDoUpdate({
+        target: teams.id,
+        set: {
+          name: sql`excluded.name`,
+          code: sql`excluded.code`,
+          country: sql`excluded.country`,
+          founded: sql`excluded.founded`,
+          national: sql`excluded.national`,
+          logo: sql`excluded.logo`
+        }
+      })
+      .returning();
+    return inserted;
   }
 
   async getLiveFixtures(): Promise<Fixture[]> {
     return await db.select().from(fixtures)
-      .where(eq(fixtures.status, 'LIVE'))
+      .where(inArray(fixtures.status, ['LIVE', '1H', '2H']))
       .orderBy(desc(fixtures.date));
   }
 
@@ -102,18 +148,59 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateFixture(fixture: Fixture): Promise<Fixture> {
-    const existing = await this.getFixture(fixture.id);
+    const inserted = await db.insert(fixtures)
+      .values(fixture)
+      .onConflictDoUpdate({
+        target: fixtures.id,
+        set: {
+          referee: fixture.referee,
+          timezone: fixture.timezone,
+          date: fixture.date,
+          timestamp: fixture.timestamp,
+          status: fixture.status,
+          elapsed: fixture.elapsed,
+          round: fixture.round,
+          homeTeamId: fixture.homeTeamId,
+          awayTeamId: fixture.awayTeamId,
+          leagueId: fixture.leagueId,
+          venue: fixture.venue,
+          homeScore: fixture.homeScore,
+          awayScore: fixture.awayScore,
+          halftimeHomeScore: fixture.halftimeHomeScore,
+          halftimeAwayScore: fixture.halftimeAwayScore
+        }
+      })
+      .returning();
+    return inserted[0];
+  }
+  
+  async updateFixtures(fixtureArray: Fixture[]): Promise<Fixture[]> {
+    if (fixtureArray.length === 0) return [];
     
-    if (existing) {
-      const updated = await db.update(fixtures)
-        .set(fixture)
-        .where(eq(fixtures.id, fixture.id))
-        .returning();
-      return updated[0];
-    } else {
-      const inserted = await db.insert(fixtures).values(fixture).returning();
-      return inserted[0];
-    }
+    const inserted = await db.insert(fixtures)
+      .values(fixtureArray)
+      .onConflictDoUpdate({
+        target: fixtures.id,
+        set: {
+          referee: sql`excluded.referee`,
+          timezone: sql`excluded.timezone`,
+          date: sql`excluded.date`,
+          timestamp: sql`excluded.timestamp`,
+          status: sql`excluded.status`,
+          elapsed: sql`excluded.elapsed`,
+          round: sql`excluded.round`,
+          homeTeamId: sql`excluded.home_team_id`,
+          awayTeamId: sql`excluded.away_team_id`, 
+          leagueId: sql`excluded.league_id`,
+          venue: sql`excluded.venue`,
+          homeScore: sql`excluded.home_score`,
+          awayScore: sql`excluded.away_score`,
+          halftimeHomeScore: sql`excluded.halftime_home_score`,
+          halftimeAwayScore: sql`excluded.halftime_away_score`
+        }
+      })
+      .returning();
+    return inserted;
   }
 
   async getPredictions(fixtureId?: number): Promise<Prediction[]> {
@@ -188,7 +275,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateTeamStats(stats: TeamStats): Promise<TeamStats> {
-    const existing = await this.getTeamStats(stats.teamId, stats.leagueId || undefined);
+    const existing = await this.getTeamStats(stats.teamId, stats.leagueId ?? undefined);
     
     if (existing) {
       const updated = await db.update(teamStats)
@@ -216,13 +303,14 @@ export class DatabaseStorage implements IStorage {
     if (fixtureId) conditions.push(eq(scrapedData.fixtureId, fixtureId));
     if (teamId) conditions.push(eq(scrapedData.teamId, teamId));
     
-    let query = db.select().from(scrapedData);
-    
     if (conditions.length > 0) {
-      query = query.where(and(...conditions));
+      return await db.select().from(scrapedData).where(and(...conditions))
+        .orderBy(desc(scrapedData.scrapedAt));
     }
     
-    return await query.orderBy(desc(scrapedData.scrapedAt)).limit(100);
+    return await db.select().from(scrapedData)
+      .orderBy(desc(scrapedData.scrapedAt))
+      .limit(100);
   }
 
   async getLatestScrapedData(source: string, dataType: string): Promise<ScrapedData | undefined> {

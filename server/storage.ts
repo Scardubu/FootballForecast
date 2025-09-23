@@ -21,15 +21,18 @@ export interface IStorage {
   getLeagues(): Promise<League[]>;
   getLeague(id: number): Promise<League | undefined>;
   updateLeague(league: League): Promise<League>;
+  updateLeagues(leagues: League[]): Promise<League[]>;
   
   getTeams(): Promise<Team[]>;
   getTeam(id: number): Promise<Team | undefined>;
   updateTeam(team: Team): Promise<Team>;
+  updateTeams(teams: Team[]): Promise<Team[]>;
   
   getLiveFixtures(): Promise<Fixture[]>;
   getFixtures(leagueId?: number): Promise<Fixture[]>;
   getFixture(id: number): Promise<Fixture | undefined>;
   updateFixture(fixture: Fixture): Promise<Fixture>;
+  updateFixtures(fixtures: Fixture[]): Promise<Fixture[]>;
   
   getPredictions(fixtureId?: number): Promise<Prediction[]>;
   updatePrediction(prediction: Prediction): Promise<Prediction>;
@@ -157,6 +160,27 @@ export class MemStorage implements IStorage {
       this.standings.set(standing.id, standing);
     });
     return standings;
+  }
+  
+  async updateLeagues(leagues: League[]): Promise<League[]> {
+    leagues.forEach(league => {
+      this.leagues.set(league.id, league);
+    });
+    return leagues;
+  }
+  
+  async updateTeams(teams: Team[]): Promise<Team[]> {
+    teams.forEach(team => {
+      this.teams.set(team.id, team);
+    });
+    return teams;
+  }
+  
+  async updateFixtures(fixtures: Fixture[]): Promise<Fixture[]> {
+    fixtures.forEach(fixture => {
+      this.fixtures.set(fixture.id, fixture);
+    });
+    return fixtures;
   }
 
   async getTeamStats(teamId: number, leagueId?: number): Promise<TeamStats | undefined> {
