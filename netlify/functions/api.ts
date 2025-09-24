@@ -34,7 +34,7 @@ async function setupApp() {
   
   // Mount the consolidated API router at the Netlify Functions base path.
   // In production, requests are forwarded to /.netlify/functions/api/:splat
-  app.use('/.netlify/functions/api', apiRouter);
+  app.use('/', apiRouter);
   
   // Error handling
   app.use(notFoundHandler);

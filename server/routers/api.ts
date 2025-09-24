@@ -24,7 +24,6 @@ apiRouter.use('/predictions', predictionsRouter);
 apiRouter.use('/scraped-data', scrapedDataRouter);
 apiRouter.use('/ml', mlRouter);
 apiRouter.use('/diagnostics', diagnosticsRouter);
-apiRouter.use('/stats', statsRouter);
 
 // Auth routes
 apiRouter.use('/auth', authRouter);

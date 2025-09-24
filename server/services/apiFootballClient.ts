@@ -125,7 +125,7 @@ export class ApiFootballClient {
       const data: ApiFootballResponse<T> = await response.json();
       
       // Check for API-specific errors (both object and array formats)
-      if (data.errors) {
+      if (data.errors && (Object.keys(data.errors).length > 0 || (Array.isArray(data.errors) && data.errors.length > 0))) {
         // Handle object format: { errors: { requests: "msg", plan: "msg" } }
         if (typeof data.errors === 'object' && !Array.isArray(data.errors)) {
           if (data.errors.requests) {

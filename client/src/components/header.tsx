@@ -1,19 +1,27 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useLeagueStore } from "@/hooks/use-league-store";
 import { Link, useLocation } from "wouter";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export function Header() {
-  const [selectedLeague, setSelectedLeague] = useState("39"); // Premier League
+  const { selectedLeague, setSelectedLeague } = useLeagueStore();
   const [location] = useLocation();
 
-  const leagues = [
-    { id: "39", name: "Premier League", country: "England" },
-    { id: "140", name: "La Liga", country: "Spain" },
-    { id: "135", name: "Serie A", country: "Italy" },
-    { id: "78", name: "Bundesliga", country: "Germany" },
-    { id: "61", name: "Ligue 1", country: "France" },
-    { id: "2", name: "Champions League", country: "Europe" },
-  ];
+  const [leagues, setLeagues] = useState([]);
+
+  useEffect(() => {
+    async function fetchLeagues() {
+      try {
+        const response = await fetch('/api/leagues');
+        const data = await response.json();
+        setLeagues(data);
+      } catch (error) {
+        console.error('Failed to fetch leagues:', error);
+      }
+    }
+
+    fetchLeagues();
+  }, []);
 
   return (
     <header className="bg-card border-b border-border sticky top-0 z-50">
@@ -32,27 +40,27 @@ export function Header() {
             
             <nav className="hidden md:flex space-x-6">
               <Link href="/">
-                <a className={`${location === "/" || location === "/dashboard" ? "text-foreground" : "text-muted-foreground"} hover:text-primary font-medium transition-colors`} data-testid="nav-dashboard">
+                <a className={`${location === "/" || location.startsWith("/dashboard") ? "text-foreground" : "text-muted-foreground"} hover:text-primary font-medium transition-colors`} data-testid="nav-dashboard">
                   Dashboard
                 </a>
               </Link>
               <Link href="/dashboard#predictions">
-                <a className={`${location?.includes("dashboard") ? "text-muted-foreground" : "text-muted-foreground"} hover:text-primary font-medium transition-colors`} data-testid="nav-predictions">
+                <a className={`${location.includes("#predictions") ? "text-foreground" : "text-muted-foreground"} hover:text-primary font-medium transition-colors`} data-testid="nav-predictions">
                   Predictions
                 </a>
               </Link>
               <Link href="/dashboard#teams">
-                <a className="text-muted-foreground hover:text-primary font-medium transition-colors" data-testid="nav-teams">
+                <a className={`${location.includes("#teams") ? "text-foreground" : "text-muted-foreground"} hover:text-primary font-medium transition-colors`} data-testid="nav-teams">
                   Teams
                 </a>
               </Link>
               <Link href="/dashboard#leagues">
-                <a className="text-muted-foreground hover:text-primary font-medium transition-colors" data-testid="nav-leagues">
+                <a className={`${location.includes("#leagues") ? "text-foreground" : "text-muted-foreground"} hover:text-primary font-medium transition-colors`} data-testid="nav-leagues">
                   Leagues
                 </a>
               </Link>
               <Link href="/dashboard#analytics">
-                <a className="text-muted-foreground hover:text-primary font-medium transition-colors" data-testid="nav-statistics">
+                <a className={`${location.includes("#analytics") ? "text-foreground" : "text-muted-foreground"} hover:text-primary font-medium transition-colors`} data-testid="nav-statistics">
                   Statistics
                 </a>
               </Link>
