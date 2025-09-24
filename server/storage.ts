@@ -229,7 +229,7 @@ export class MemStorage implements IStorage {
   }
 }
 
-import { DatabaseStorage } from "./db-storage.ts";
+import { DatabaseStorage } from "./db-storage";
 
 // Use database storage when available, memory storage as fallback
 const hasDatabase = !!process.env.DATABASE_URL;

@@ -1,12 +1,12 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { eq, desc, and, sql, inArray } from "drizzle-orm";
-import type { IStorage } from "./storage.ts";
+import type { IStorage } from "./storage";
 import {
   users, leagues, teams, fixtures, predictions, standings, teamStats, scrapedData,
   type User, type League, type Team, type Fixture, type Prediction, 
   type Standing, type TeamStats, type InsertUser, type ScrapedData, type InsertScrapedData
-} from "../shared/schema.ts";
+} from "../shared/schema";
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
