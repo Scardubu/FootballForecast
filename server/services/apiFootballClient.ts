@@ -3,6 +3,7 @@
  */
 
 import { api } from '../config';
+import { logger } from '../middleware/logger';
 
 interface CacheEntry<T> {
   data: T;
@@ -20,7 +21,7 @@ interface CircuitBreakerState {
 interface ApiFootballResponse<T> {
   get: string;
   parameters: Record<string, string>;
-  errors: Record<string, string> | [];
+  errors: Record<string, string> | string[] | [];
   results: number;
   paging: {
     current: number;
@@ -64,7 +65,7 @@ export class ApiFootballClient {
     this.apiKey = apiKey || api.footballApiKey;
     
     // Configuration validation is handled by centralized config
-    console.log('✅ API-Football client initialized with secure configuration');
+    logger.info('API-Football client initialized with secure configuration');
     
     // Clean up expired cache entries every 5 minutes
     setInterval(() => this.cleanupCache(), 300000);
@@ -78,14 +79,14 @@ export class ApiFootballClient {
     
     // Check circuit breaker state
     if (!this.canMakeRequest()) {
-      console.log(`🚨 Circuit breaker OPEN, using cached data for ${endpoint}`);
+      logger.warn({ endpoint: endpoint }, 'Circuit breaker OPEN, using cached data');
       return this.getCachedDataOrFallback<T>(cacheKey, endpoint);
     }
     
     // Try cache first
     const cachedData = this.getCachedData<T>(cacheKey);
     if (cachedData) {
-      console.log(`📦 Cache hit for ${endpoint}`);
+      logger.info({ endpoint: endpoint }, 'Cache hit');
       return cachedData;
     }
     
@@ -95,7 +96,7 @@ export class ApiFootballClient {
 
   private async makeRequestWithRetry<T>(endpoint: string, cacheKey: string, attempt = 1): Promise<ApiFootballResponse<T>> {
     try {
-      console.log(`🌐 API request attempt ${attempt}/${this.maxRetries + 1}: ${endpoint}`);
+      logger.info({ endpoint: endpoint, attempt: attempt }, 'API request attempt');
       
       const response = await fetch(`${this.baseUrl}/${endpoint}`, {
         headers: {
@@ -112,7 +113,7 @@ export class ApiFootballClient {
           const delayMs = retryAfter ? parseInt(retryAfter) * 1000 : this.calculateBackoffDelay(attempt);
           
           if (attempt <= this.maxRetries) {
-            console.log(`⏳ Rate limited, retrying after ${delayMs}ms (attempt ${attempt})`);
+            logger.warn({ endpoint: endpoint, delayMs: delayMs, attempt: attempt }, 'Rate limited, retrying');
             await this.sleep(delayMs);
             return this.makeRequestWithRetry<T>(endpoint, cacheKey, attempt + 1);
           }
@@ -128,26 +129,30 @@ export class ApiFootballClient {
         // Handle object format: { errors: { requests: "msg", plan: "msg" } }
         if (typeof data.errors === 'object' && !Array.isArray(data.errors)) {
           if (data.errors.requests) {
-            console.warn('⚠️ API-Football request limit reached:', data.errors.requests);
+            logger.warn({ endpoint: endpoint, error: data.errors.requests }, 'API-Football request limit reached');
             throw new Error(`API_LIMIT_REACHED: ${data.errors.requests}`);
           }
           if (data.errors.plan) {
-            console.warn('⚠️ API-Football plan limitation:', data.errors.plan);
+            logger.warn({ endpoint: endpoint, error: data.errors.plan }, 'API-Football plan limitation');
             throw new Error(`API_PLAN_LIMIT: ${data.errors.plan}`);
           }
           if (data.errors.rateLimit) {
-            console.warn('⚠️ API-Football rate limit:', data.errors.rateLimit);
+            logger.warn({ endpoint: endpoint, error: data.errors.rateLimit }, 'API-Football rate limit');
             throw new Error(`API_RATE_LIMIT: ${data.errors.rateLimit}`);
           }
         }
         // Handle array format: { errors: ["error_message"] }
         else if (Array.isArray(data.errors) && data.errors.length > 0) {
-          const firstError = data.errors[0];
-          if (firstError && typeof firstError === 'string') {
-            if (firstError.includes('requests') || firstError.includes('limit')) {
-              throw new Error(`API_LIMIT_REACHED: ${firstError}`);
+          // Safely handle array errors with explicit type checking
+          const errorMessage = data.errors[0];
+          
+          // Use type assertion after checking to satisfy TypeScript
+          if (typeof errorMessage === 'string') {
+            const stringError = errorMessage as string;
+            if (stringError.includes('requests') || stringError.includes('limit')) {
+              throw new Error(`API_LIMIT_REACHED: ${stringError}`);
             }
-            throw new Error(`API_ERROR: ${firstError}`);
+            throw new Error(`API_ERROR: ${stringError}`);
           }
         }
       }
@@ -165,7 +170,7 @@ export class ApiFootballClient {
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`❌ API request failed (attempt ${attempt}): ${errorMessage}`);
+      logger.error({ endpoint: endpoint, attempt: attempt, error: errorMessage }, 'API request failed');
       
       // Record failure for circuit breaker
       this.recordFailure();
@@ -173,13 +178,13 @@ export class ApiFootballClient {
       // Retry logic for transient errors
       if (attempt <= this.maxRetries && this.shouldRetry(errorMessage)) {
         const delayMs = this.calculateBackoffDelay(attempt);
-        console.log(`🔄 Retrying in ${delayMs}ms...`);
+        logger.info({ endpoint: endpoint, delayMs: delayMs, attempt: attempt }, 'Retrying');
         await this.sleep(delayMs);
         return this.makeRequestWithRetry<T>(endpoint, cacheKey, attempt + 1);
       }
       
       // Final attempt failed - try fallback
-      console.log(`💾 All retries failed, attempting fallback for ${endpoint}`);
+      logger.error({ endpoint: endpoint }, 'All retries failed, attempting fallback');
       return this.getCachedDataOrFallback<T>(cacheKey, endpoint);
     }
   }
@@ -192,7 +197,7 @@ export class ApiFootballClient {
         return true;
       case 'OPEN':
         if (now - this.circuitBreaker.lastFailureTime > this.openTimeoutMs) {
-          console.log('🔄 Circuit breaker transitioning to HALF_OPEN');
+          logger.info('Circuit breaker transitioning to HALF_OPEN');
           this.circuitBreaker.state = 'HALF_OPEN';
           this.circuitBreaker.halfOpenTrials = 0;
           return true;
@@ -207,7 +212,7 @@ export class ApiFootballClient {
 
   private recordSuccess(): void {
     if (this.circuitBreaker.state !== 'CLOSED') {
-      console.log('✅ Circuit breaker reset to CLOSED after successful request');
+      logger.info('Circuit breaker reset to CLOSED after successful request');
     }
     this.circuitBreaker.failures = 0;
     this.circuitBreaker.halfOpenTrials = 0;
@@ -216,7 +221,7 @@ export class ApiFootballClient {
 
   private recordFailure(): void {
     if (this.circuitBreaker.state === 'HALF_OPEN') {
-      console.log('🚨 Circuit breaker OPEN after failure in HALF_OPEN state');
+      logger.error('Circuit breaker OPEN after failure in HALF_OPEN state');
       this.circuitBreaker.state = 'OPEN';
       this.circuitBreaker.lastFailureTime = Date.now();
     } else {
@@ -225,7 +230,7 @@ export class ApiFootballClient {
       this.circuitBreaker.lastFailureTime = Date.now();
       
       if (this.circuitBreaker.failures >= this.maxFailures && this.circuitBreaker.state === 'CLOSED') {
-        console.log(`🚨 Circuit breaker OPEN after ${this.circuitBreaker.failures} failures`);
+        logger.error({ failures: this.circuitBreaker.failures }, 'Circuit breaker OPEN after failures');
         this.circuitBreaker.state = 'OPEN';
       }
     }
@@ -278,12 +283,12 @@ export class ApiFootballClient {
     // Try stale cache first
     const staleEntry = this.cache.get(cacheKey);
     if (staleEntry) {
-      console.log(`📦 Using stale cache for ${endpoint}`);
+      logger.info({ endpoint: endpoint }, 'Using stale cache');
       return staleEntry.data;
     }
     
     // Generate fallback response
-    console.log(`🎭 Generating fallback response for ${endpoint}`);
+    logger.error({ endpoint: endpoint }, 'Generating fallback response');
     return {
       get: endpoint,
       parameters: {},
@@ -306,7 +311,7 @@ export class ApiFootballClient {
     }
     
     if (cleanedCount > 0) {
-      console.log(`🧹 Cleaned up ${cleanedCount} expired cache entries`);
+      logger.info({ cleanedCount: cleanedCount }, 'Cleaned up expired cache entries');
     }
   }
 

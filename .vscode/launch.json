@@ -1,0 +1,35 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Launch Node.js Backend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:node"],
+      "skipFiles": ["<node_internals>/**"],
+      "console": "integratedTerminal"
+    },
+    {
+      "type": "python",
+      "request": "launch",
+      "name": "Launch Python ML Service",
+      "module": "uvicorn",
+      "args": [
+        "src.api.ml_endpoints:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+        "--reload"
+      ],
+      "jinja": true
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Launch Full Stack",
+      "configurations": ["Launch Node.js Backend", "Launch Python ML Service"]
+    }
+  ]
+}

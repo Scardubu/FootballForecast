@@ -1,15 +1,17 @@
-import { drizzle } from "drizzle-orm/neon-http";
-import { neon } from "@neondatabase/serverless";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { Pool } from "pg";
 import { eq, desc, and, sql, inArray } from "drizzle-orm";
 import type { IStorage } from "./storage.ts";
-import { 
+import {
   users, leagues, teams, fixtures, predictions, standings, teamStats, scrapedData,
   type User, type League, type Team, type Fixture, type Prediction, 
   type Standing, type TeamStats, type InsertUser, type ScrapedData, type InsertScrapedData
 } from "../shared/schema.ts";
 
-const client = neon(process.env.DATABASE_URL!);
-const db = drizzle(client);
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
+const db = drizzle(pool);
 
 export class DatabaseStorage implements IStorage {
   
@@ -274,7 +276,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateTeamStats(stats: TeamStats): Promise<TeamStats> {
-    const existing = await this.getTeamStats(stats.teamId, stats.leagueId ? stats.leagueId : undefined);
+    const existing = await this.getTeamStats(stats.teamId ?? -1, stats.leagueId ?? undefined);
     
     if (existing) {
       const updated = await db.update(teamStats)
@@ -287,7 +289,6 @@ export class DatabaseStorage implements IStorage {
       return inserted[0];
     }
   }
-
   // Scraped data methods - secure and validated
   async createScrapedData(data: InsertScrapedData): Promise<ScrapedData> {
     // Ensure confidence is a string as required by the schema
@@ -298,7 +299,6 @@ export class DatabaseStorage implements IStorage {
     const inserted = await db.insert(scrapedData).values([dataWithStringConfidence]).returning();
     return inserted[0];
   }
-
   async getScrapedData(source?: string, dataType?: string, fixtureId?: number, teamId?: number): Promise<ScrapedData[]> {
     const conditions = [];
     

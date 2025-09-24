@@ -3,24 +3,32 @@ import { Header } from "@/components/header";
 import { LiveMatches } from "@/components/live-matches";
 import { PredictionsPanel } from "@/components/predictions-panel";
 import { LeagueStandings } from "@/components/league-standings";
-import { TeamPerformance, QuickStats } from "@/components/team-performance";
-import { DataVisualization } from "@/components/data-visualization";
+import { QuickStats } from "@/components/team-performance";
 import { FixtureSelector } from "@/components/fixture-selector";
-import { ScrapedInsights } from "@/components/scraped-insights";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { LazyWrapper, LazyDataVisualization, LazyScrapedInsights, LazyTeamPerformance } from "@/components/lazy-wrapper";
+import { SkipToMain, useScreenReaderAnnouncement } from "@/components/accessibility";
 import type { Fixture } from "@shared/schema";
 
 export default function Dashboard() {
   const [selectedFixture, setSelectedFixture] = useState<Fixture | null>(null);
   const [activeTab, setActiveTab] = useState("overview");
+  const { announce, AnnouncementRegion } = useScreenReaderAnnouncement();
+
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    announce(`Switched to ${value} tab`);
+  };
 
   return (
     <div className="min-h-screen bg-background">
+      <SkipToMain />
+      <AnnouncementRegion />
       <Header />
       
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" role="main">
         {/* Hero Section with Platform Stats */}
         <div className="mb-8">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -75,7 +83,7 @@ export default function Dashboard() {
         </div>
         
         {/* Main Dashboard Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="overview" className="flex items-center space-x-2">
               <i className="fas fa-tachometer-alt text-sm"></i>
@@ -195,14 +203,18 @@ export default function Dashboard() {
                   </Card>
                 )}
                 
-                <TeamPerformance />
+                <LazyWrapper fallback={<div className="h-64 bg-muted animate-pulse rounded" />}>
+                  <LazyTeamPerformance />
+                </LazyWrapper>
               </div>
             </div>
           </TabsContent>
 
           {/* Analytics Tab */}
           <TabsContent value="analytics" className="space-y-6">
-            <DataVisualization />
+            <LazyWrapper fallback={<div className="h-96 bg-muted animate-pulse rounded" />}>
+              <LazyDataVisualization />
+            </LazyWrapper>
             
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               <Card>
@@ -267,7 +279,9 @@ export default function Dashboard() {
 
           {/* Insights Tab */}
           <TabsContent value="insights" className="space-y-6">
-            <ScrapedInsights />
+            <LazyWrapper fallback={<div className="h-96 bg-muted animate-pulse rounded" />}>
+              <LazyScrapedInsights />
+            </LazyWrapper>
           </TabsContent>
         </Tabs>
       </main>

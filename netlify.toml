@@ -1,0 +1,27 @@
+[build]
+  base = "."
+  publish = "dist"
+  command = "npm run build"
+
+[build.environment]
+  # Do NOT place actual secrets here - use Netlify UI environment settings
+  NODE_VERSION = "18.18.0"
+  NPM_VERSION = "9.8.0"
+
+[dev]
+  command = "npm run dev"
+  port = 3000
+  targetPort = 5173
+  publish = "dist"
+  framework = "vite"
+
+[[redirects]]
+  from = "/api/*"
+  to = "https://mokwkueoqemmcfxownxt.supabase.co/api/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

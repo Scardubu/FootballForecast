@@ -1,0 +1,24 @@
+# Use an official Python runtime as a parent image
+FROM python:3.11-slim
+
+# Set the working directory in the container
+WORKDIR /app
+
+# Install uv, the Python package manager
+RUN pip install uv
+
+# Copy the Python source code and dependency configuration
+COPY src/ /app/src
+COPY pyproject.toml uv.lock* /app/
+
+# Install dependencies using uv
+RUN uv sync --no-cache
+
+# Make port 8000 available to the world outside this container
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+  CMD curl -f http://localhost:8000/health || exit 1
+
+# Run the application
+CMD ["uvicorn", "src.api.ml_endpoints:app", "--host", "0.0.0.0", "--port", "8000"]

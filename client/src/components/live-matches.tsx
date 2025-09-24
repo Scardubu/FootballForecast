@@ -1,10 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/lib/auth-context";
 import { TeamDisplay } from "@/components/team-display";
 import { useWebSocket } from "@/hooks/use-websocket";
+import { ErrorBoundary } from "@/components/error-boundary";
+import { MatchCardSkeleton, SkeletonGrid } from "@/components/loading";
 import type { Fixture, Team } from "@shared/schema";
 
 export function LiveMatches() {
@@ -52,28 +53,21 @@ export function LiveMatches() {
 
   if (authLoading || isLoading) {
     return (
-      <section className="mb-8">
+      <section className="mb-8 animate-fade-in">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold text-foreground">Live Matches</h2>
-          <Skeleton className="h-4 w-32" />
+          <div className="h-4 w-32 bg-muted animate-pulse rounded" />
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[...Array(3)].map((_, i) => (
-            <Card key={i}>
-              <CardContent className="p-6">
-                <Skeleton className="h-20 w-full" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <SkeletonGrid count={3} component={MatchCardSkeleton} />
       </section>
     );
   }
 
   return (
-    <section className="mb-8">
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-foreground">Live Matches</h2>
+    <ErrorBoundary>
+      <section className="mb-8">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold text-foreground">Live Matches</h2>
         <div className="flex items-center space-x-2 text-sm text-muted-foreground">
           {wsConnecting ? (
             <>
@@ -102,7 +96,7 @@ export function LiveMatches() {
           const status = getStatusDisplay(fixture.status, fixture.elapsed);
           
           return (
-            <Card key={fixture.id} className="hover:shadow-lg transition-shadow" data-testid={`match-card-${fixture.id}`}>
+            <Card key={fixture.id} className="hover-lift smooth-transition animate-fade-in" data-testid={`match-card-${fixture.id}`}>
               <CardContent className="p-6">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center space-x-2">
@@ -173,7 +167,8 @@ export function LiveMatches() {
             </CardContent>
           </Card>
         )}
-      </div>
-    </section>
+        </div>
+      </section>
+    </ErrorBoundary>
   );
 }

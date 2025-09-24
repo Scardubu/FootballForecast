@@ -1,10 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAuth } from "@/lib/auth-context";
 import { TeamDisplay, MatchTeamsDisplay } from "@/components/team-display";
+import { ErrorBoundary } from "@/components/error-boundary";
+import { PredictionCardSkeleton } from "@/components/loading";
 import type { Fixture, Team, Prediction } from "@shared/schema";
 
 export function PredictionsPanel() {
@@ -36,26 +37,23 @@ export function PredictionsPanel() {
 
   if (authLoading || fixturesLoading) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 animate-fade-in">
         <div className="flex items-center justify-between">
-          <Skeleton className="h-8 w-48" />
-          <Skeleton className="h-6 w-24" />
+          <div className="h-8 w-48 bg-muted animate-pulse rounded" />
+          <div className="h-6 w-24 bg-muted animate-pulse rounded" />
         </div>
         {[...Array(2)].map((_, i) => (
-          <Card key={i}>
-            <CardContent className="p-6">
-              <Skeleton className="h-32 w-full" />
-            </CardContent>
-          </Card>
+          <PredictionCardSkeleton key={i} />
         ))}
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-foreground">Match Predictions</h2>
+    <ErrorBoundary>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-bold text-foreground">Match Predictions</h2>
         <div className="flex items-center space-x-2">
           <Tooltip>
             <TooltipTrigger>
@@ -75,7 +73,7 @@ export function PredictionsPanel() {
         const prediction = getPrediction(fixture.id);
         
         return (
-          <Card key={fixture.id} data-testid={`prediction-card-${fixture.id}`}>
+          <Card key={fixture.id} className="hover-lift smooth-transition animate-fade-in" data-testid={`prediction-card-${fixture.id}`}>
             <CardContent className="p-6">
               <div className="flex items-center justify-between mb-4">
                 <MatchTeamsDisplay
@@ -267,6 +265,7 @@ export function PredictionsPanel() {
           </CardContent>
         </Card>
       )}
-    </div>
+      </div>
+    </ErrorBoundary>
   );
 }

@@ -1,0 +1,44 @@
+# Stage 1: Base image for development and production
+FROM node:20-slim AS base
+
+WORKDIR /usr/src/app
+
+# Install dependencies
+COPY package*.json ./
+RUN npm ci
+
+# Copy application code
+COPY . .
+
+# Stage 2: Development image
+FROM base AS development
+
+# Expose port and start development server
+EXPOSE ${PORT:-5000}
+CMD ["npm", "run", "dev:node"]
+
+# Stage 3: Production builder
+FROM base AS builder
+
+# Build the application
+RUN npm run build
+
+# Stage 4: Production image
+FROM node:20-slim AS production
+
+WORKDIR /usr/src/app
+
+# Copy production dependencies
+COPY --from=builder /usr/src/app/package*.json ./
+RUN npm ci --omit=dev
+
+# Copy build output
+COPY --from=builder /usr/src/app/dist ./dist
+
+# Expose port and start production server
+EXPOSE ${PORT:-5000}
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+  CMD curl -f http://localhost:5000/api/health || exit 1
+
+CMD ["npm", "run", "start"]

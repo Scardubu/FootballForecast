@@ -34,7 +34,7 @@ healthRouter.get('/_client-status', asyncHandler(async (req, res) => {
 
 // Comprehensive system metrics endpoint
 healthRouter.get('/metrics', asyncHandler(async (req, res) => {
-  logger.info('Metrics endpoint accessed', { endpoint: '/metrics' });
+  logger.info({ endpoint: '/metrics' }, 'Metrics endpoint accessed');
   
   const memUsage = process.memoryUsage();
   const systemMem = {
@@ -133,7 +133,7 @@ healthRouter.get('/python-services', asyncHandler(async (req, res) => {
     
     res.json(serviceStatus);
   } catch (error) {
-    logger.error({ error: error.message }, 'Python services health check failed');
+    logger.error({ error: error instanceof Error ? error.message : String(error) }, 'Python services health check failed');
     res.status(503).json({
       timestamp: new Date().toISOString(),
       overall: 'unhealthy',
@@ -174,7 +174,7 @@ healthRouter.get('/dashboard', asyncHandler(async (req, res) => {
     
     res.json(dashboard);
   } catch (error) {
-    logger.error({ error: error.message }, 'Monitoring dashboard failed');
+    logger.error({ error: error instanceof Error ? error.message : String(error) }, 'Monitoring dashboard failed');
     res.status(500).json({
       timestamp: new Date().toISOString(),
       status: 'error',
@@ -197,7 +197,7 @@ async function checkPythonService(service: string, healthPath: string) {
     return {
       service,
       status: 'unhealthy', 
-      error: error.message
+      error: error instanceof Error ? error.message : String(error)
     };
   }
 }

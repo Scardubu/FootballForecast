@@ -1,0 +1,884 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SabiScore Analytics - Football Insights Platform</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+    tailwind.config = {
+        theme: {
+            extend: {
+                borderRadius: {
+                    lg: "var(--radius)",
+                    md: "calc(var(--radius) - 2px)",
+                    sm: "calc(var(--radius) - 4px)",
+                },
+                colors: {
+                    background: "var(--background)",
+                    foreground: "var(--foreground)",
+                    card: {
+                        DEFAULT: "var(--card)",
+                        foreground: "var(--card-foreground)",
+                    },
+                    primary: {
+                        DEFAULT: "var(--primary)",
+                        foreground: "var(--primary-foreground)",
+                    },
+                    secondary: {
+                        DEFAULT: "var(--secondary)",
+                        foreground: "var(--secondary-foreground)",
+                    },
+                    muted: {
+                        DEFAULT: "var(--muted)",
+                        foreground: "var(--muted-foreground)",
+                    },
+                    accent: {
+                        DEFAULT: "var(--accent)",
+                        foreground: "var(--accent-foreground)",
+                    },
+                    success: {
+                        DEFAULT: "var(--success)",
+                        foreground: "var(--success-foreground)",
+                    },
+                    border: "var(--border)",
+                    input: "var(--input)",
+                    ring: "var(--ring)",
+                },
+                fontFamily: {
+                    sans: ["Roboto", "Open Sans", "system-ui", "sans-serif"],
+                }
+            },
+        }
+    };
+    </script>
+    <style>
+        :root {
+            --background: hsl(0 0% 98%);
+            --foreground: hsl(0 0% 13%);
+            --card: hsl(0 0% 100%);
+            --card-foreground: hsl(0 0% 13%);
+            --primary: hsl(122 64% 22%);
+            --primary-foreground: hsl(0 0% 98%);
+            --secondary: hsl(24 100% 50%);
+            --secondary-foreground: hsl(0 0% 98%);
+            --muted: hsl(0 0% 96%);
+            --muted-foreground: hsl(0 0% 45%);
+            --accent: hsl(207 90% 54%);
+            --accent-foreground: hsl(0 0% 98%);
+            --success: hsl(122 39% 49%);
+            --success-foreground: hsl(0 0% 98%);
+            --border: hsl(0 0% 90%);
+            --input: hsl(0 0% 90%);
+            --ring: hsl(122 64% 22%);
+            --radius: 8px;
+        }
+        
+        .gradient-bg {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+        }
+        
+        .tooltip {
+            position: relative;
+        }
+        
+        .tooltip:hover .tooltip-content {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(-5px);
+        }
+        
+        .tooltip-content {
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%) translateY(0);
+            background: hsl(0 0% 13%);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 14px;
+            white-space: nowrap;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+            z-index: 1000;
+        }
+        
+        .tooltip-content::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 5px solid transparent;
+            border-top-color: hsl(0 0% 13%);
+        }
+        
+        .live-pulse {
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        .prediction-confidence {
+            background: linear-gradient(90deg, var(--success) 0%, var(--secondary) 100%);
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Open+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-background text-foreground">
+    <!-- @COMPONENT: Header [Navigation and league selection] -->
+    <header class="bg-card border-b border-border sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center space-x-8">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
+                            <i class="fas fa-futbol text-primary-foreground text-lg"></i>
+                        </div>
+                        <div>
+                            <h1 class="text-xl font-bold text-primary">SabiScore</h1>
+                            <p class="text-xs text-muted-foreground">Analytics</p>
+                        </div>
+                    </div>
+                    
+                    <nav class="hidden md:flex space-x-6">
+                        <a href="#" class="text-foreground hover:text-primary font-medium transition-colors">Dashboard</a>
+                        <a href="#" class="text-muted-foreground hover:text-primary font-medium transition-colors">Predictions</a>
+                        <a href="#" class="text-muted-foreground hover:text-primary font-medium transition-colors">Teams</a>
+                        <a href="#" class="text-muted-foreground hover:text-primary font-medium transition-colors">Leagues</a>
+                        <a href="#" class="text-muted-foreground hover:text-primary font-medium transition-colors">Statistics</a>
+                    </nav>
+                </div>
+                
+                <div class="flex items-center space-x-4">
+                    <!-- League Selector -->
+                    <div class="relative">
+                        <select class="bg-muted border border-border rounded-lg px-4 py-2 pr-10 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-ring">
+                            <option>Premier League</option>
+                            <option>La Liga</option>
+                            <option>Serie A</option>
+                            <option>Bundesliga</option>
+                            <option>Ligue 1</option>
+                            <option>Champions League</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Live Indicator -->
+                    <div class="flex items-center space-x-2 text-sm">
+                        <div class="w-2 h-2 bg-success rounded-full live-pulse"></div>
+                        <span class="text-muted-foreground">Live</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+    <!-- @END_COMPONENT: Header -->
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- @COMPONENT: LiveMatches [Real-time match updates] -->
+        <section class="mb-8">
+            <div class="flex items-center justify-between mb-6">
+                <h2 class="text-2xl font-bold text-foreground">Live Matches</h2>
+                <div class="flex items-center space-x-2 text-sm text-muted-foreground">
+                    <i class="fas fa-clock"></i>
+                    <span>Updates every 15 seconds</span>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Live Match Card 1 -->
+                <div class="bg-card border border-border rounded-lg p-6 hover:shadow-lg transition-shadow">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center space-x-2">
+                            <div class="w-2 h-2 bg-success rounded-full live-pulse"></div>
+                            <span class="text-sm font-medium text-success">LIVE 67'</span>
+                        </div>
+                        <span class="text-xs text-muted-foreground">Premier League</span>
+                    </div>
+                    
+                    <div class="space-y-4">
+                        <!-- Manchester City vs Arsenal match -->
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-3">
+                                <!-- Manchester City logo placeholder -->
+                                <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+                                    <span class="text-white text-xs font-bold">MC</span>
+                                </div>
+                                <span class="font-semibold" data-bind="match.homeTeam">Manchester City</span>
+                            </div>
+                            <span class="text-2xl font-bold text-primary" data-bind="match.homeScore">2</span>
+                        </div>
+                        
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-3">
+                                <!-- Arsenal logo placeholder -->
+                                <div class="w-8 h-8 bg-red-500 rounded-full flex items-center justify-center">
+                                    <span class="text-white text-xs font-bold">ARS</span>
+                                </div>
+                                <span class="font-semibold" data-bind="match.awayTeam">Arsenal</span>
+                            </div>
+                            <span class="text-2xl font-bold text-primary" data-bind="match.awayScore">1</span>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4 pt-4 border-t border-border">
+                        <div class="flex items-center justify-between text-sm">
+                            <span class="text-muted-foreground">Etihad Stadium</span>
+                            <button class="text-accent hover:text-accent/80 font-medium">View Details</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Live Match Card 2 -->
+                <div class="bg-card border border-border rounded-lg p-6 hover:shadow-lg transition-shadow">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center space-x-2">
+                            <div class="w-2 h-2 bg-secondary rounded-full live-pulse"></div>
+                            <span class="text-sm font-medium text-secondary">LIVE 45+2'</span>
+                        </div>
+                        <span class="text-xs text-muted-foreground">Premier League</span>
+                    </div>
+                    
+                    <div class="space-y-4">
+                        <!-- Liverpool vs Chelsea match -->
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-3">
+                                <!-- Liverpool logo placeholder -->
+                                <div class="w-8 h-8 bg-red-600 rounded-full flex items-center justify-center">
+                                    <span class="text-white text-xs font-bold">LIV</span>
+                                </div>
+                                <span class="font-semibold" data-bind="match.homeTeam">Liverpool</span>
+                            </div>
+                            <span class="text-2xl font-bold text-primary" data-bind="match.homeScore">0</span>
+                        </div>
+                        
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-3">
+                                <!-- Chelsea logo placeholder -->
+                                <div class="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+                                    <span class="text-white text-xs font-bold">CHE</span>
+                                </div>
+                                <span class="font-semibold" data-bind="match.awayTeam">Chelsea</span>
+                            </div>
+                            <span class="text-2xl font-bold text-primary" data-bind="match.awayScore">0</span>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4 pt-4 border-t border-border">
+                        <div class="flex items-center justify-between text-sm">
+                            <span class="text-muted-foreground">Anfield</span>
+                            <button class="text-accent hover:text-accent/80 font-medium">View Details</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Upcoming Match Card -->
+                <div class="bg-card border border-border rounded-lg p-6 hover:shadow-lg transition-shadow">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center space-x-2">
+                            <i class="fas fa-clock text-muted-foreground"></i>
+                            <span class="text-sm font-medium text-muted-foreground">15:30 GMT</span>
+                        </div>
+                        <span class="text-xs text-muted-foreground">Premier League</span>
+                    </div>
+                    
+                    <div class="space-y-4">
+                        <!-- Manchester United vs Tottenham upcoming -->
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-3">
+                                <!-- Manchester United logo placeholder -->
+                                <div class="w-8 h-8 bg-red-700 rounded-full flex items-center justify-center">
+                                    <span class="text-white text-xs font-bold">MU</span>
+                                </div>
+                                <span class="font-semibold" data-bind="match.homeTeam">Manchester United</span>
+                            </div>
+                            <span class="text-sm text-muted-foreground">vs</span>
+                        </div>
+                        
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-3">
+                                <!-- Tottenham logo placeholder -->
+                                <div class="w-8 h-8 bg-white border border-border rounded-full flex items-center justify-center">
+                                    <span class="text-gray-800 text-xs font-bold">TOT</span>
+                                </div>
+                                <span class="font-semibold" data-bind="match.awayTeam">Tottenham</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4 pt-4 border-t border-border">
+                        <div class="flex items-center justify-between text-sm">
+                            <span class="text-muted-foreground">Old Trafford</span>
+                            <button class="text-accent hover:text-accent/80 font-medium">Predictions</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        <!-- @END_COMPONENT: LiveMatches -->
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- @COMPONENT: PredictionsPanel [Enhanced prediction display with tooltips] -->
+            <div class="lg:col-span-2 space-y-6">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-2xl font-bold text-foreground">Match Predictions</h2>
+                    <div class="flex items-center space-x-2">
+                        <div class="tooltip">
+                            <i class="fas fa-info-circle text-muted-foreground cursor-help"></i>
+                            <div class="tooltip-content">
+                                Predictions based on team form, head-to-head stats, and advanced analytics
+                            </div>
+                        </div>
+                        <span class="text-sm text-muted-foreground">AI-Powered</span>
+                    </div>
+                </div>
+                
+                <!-- Prediction Card 1 -->
+                <div class="bg-card border border-border rounded-lg p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center space-x-4">
+                            <div class="flex items-center space-x-2">
+                                <!-- Manchester City logo -->
+                                <div class="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
+                                    <span class="text-white text-sm font-bold">MC</span>
+                                </div>
+                                <span class="font-semibold">Manchester City</span>
+                            </div>
+                            <span class="text-muted-foreground">vs</span>
+                            <div class="flex items-center space-x-2">
+                                <!-- Arsenal logo -->
+                                <div class="w-10 h-10 bg-red-500 rounded-full flex items-center justify-center">
+                                    <span class="text-white text-sm font-bold">ARS</span>
+                                </div>
+                                <span class="font-semibold">Arsenal</span>
+                            </div>
+                        </div>
+                        <span class="text-sm text-muted-foreground">Today, 17:30</span>
+                    </div>
+                    
+                    <div class="grid grid-cols-3 gap-4 mb-6">
+                        <div class="text-center">
+                            <div class="tooltip">
+                                <div class="text-2xl font-bold text-primary cursor-help">45%</div>
+                                <div class="tooltip-content">
+                                    Home win probability based on recent form and historical data
+                                </div>
+                            </div>
+                            <div class="text-sm text-muted-foreground">Home Win</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="tooltip">
+                                <div class="text-2xl font-bold text-muted-foreground cursor-help">28%</div>
+                                <div class="tooltip-content">
+                                    Draw probability considering both teams' defensive strength
+                                </div>
+                            </div>
+                            <div class="text-sm text-muted-foreground">Draw</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="tooltip">
+                                <div class="text-2xl font-bold text-secondary cursor-help">27%</div>
+                                <div class="tooltip-content">
+                                    Away win probability factoring in away form and head-to-head
+                                </div>
+                            </div>
+                            <div class="text-sm text-muted-foreground">Away Win</div>
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm font-medium">Confidence Level</span>
+                            <div class="flex items-center space-x-2">
+                                <div class="w-24 h-2 bg-muted rounded-full overflow-hidden">
+                                    <div class="h-full prediction-confidence" style="width: 78%"></div>
+                                </div>
+                                <span class="text-sm font-medium">78%</span>
+                            </div>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-4 text-sm">
+                            <div class="tooltip">
+                                <div class="flex justify-between cursor-help">
+                                    <span class="text-muted-foreground">Expected Goals</span>
+                                    <span class="font-medium">2.1 - 1.4</span>
+                                </div>
+                                <div class="tooltip-content">
+                                    Predicted total goals based on attacking and defensive stats
+                                </div>
+                            </div>
+                            <div class="tooltip">
+                                <div class="flex justify-between cursor-help">
+                                    <span class="text-muted-foreground">Both Teams Score</span>
+                                    <span class="font-medium text-success">Yes (65%)</span>
+                                </div>
+                                <div class="tooltip-content">
+                                    Probability both teams will score based on scoring patterns
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4 pt-4 border-t border-border">
+                        <button class="w-full bg-primary text-primary-foreground py-2 px-4 rounded-lg font-medium hover:opacity-90 transition-opacity">
+                            View Detailed Analysis
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Prediction Card 2 -->
+                <div class="bg-card border border-border rounded-lg p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center space-x-4">
+                            <div class="flex items-center space-x-2">
+                                <!-- Real Madrid logo -->
+                                <div class="w-10 h-10 bg-white border border-border rounded-full flex items-center justify-center">
+                                    <span class="text-gray-800 text-sm font-bold">RM</span>
+                                </div>
+                                <span class="font-semibold">Real Madrid</span>
+                            </div>
+                            <span class="text-muted-foreground">vs</span>
+                            <div class="flex items-center space-x-2">
+                                <!-- Barcelona logo -->
+                                <div class="w-10 h-10" style="background: linear-gradient(45deg, #A50044 50%, #004D98 50%); border-radius: 50%;">
+                                    <div class="flex items-center justify-center h-full">
+                                        <span class="text-white text-xs font-bold">FCB</span>
+                                    </div>
+                                </div>
+                                <span class="font-semibold">Barcelona</span>
+                            </div>
+                        </div>
+                        <span class="text-sm text-muted-foreground">Tomorrow, 20:00</span>
+                    </div>
+                    
+                    <div class="grid grid-cols-3 gap-4 mb-6">
+                        <div class="text-center">
+                            <div class="tooltip">
+                                <div class="text-2xl font-bold text-primary cursor-help">38%</div>
+                                <div class="tooltip-content">
+                                    Real Madrid home advantage in El Clásico encounters
+                                </div>
+                            </div>
+                            <div class="text-sm text-muted-foreground">Home Win</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="tooltip">
+                                <div class="text-2xl font-bold text-muted-foreground cursor-help">24%</div>
+                                <div class="tooltip-content">
+                                    Historical draw rate in recent El Clásico matches
+                                </div>
+                            </div>
+                            <div class="text-sm text-muted-foreground">Draw</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="tooltip">
+                                <div class="text-2xl font-bold text-secondary cursor-help">38%</div>
+                                <div class="tooltip-content">
+                                    Barcelona's strong away record this season
+                                </div>
+                            </div>
+                            <div class="text-sm text-muted-foreground">Away Win</div>
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm font-medium">Confidence Level</span>
+                            <div class="flex items-center space-x-2">
+                                <div class="w-24 h-2 bg-muted rounded-full overflow-hidden">
+                                    <div class="h-full prediction-confidence" style="width: 85%"></div>
+                                </div>
+                                <span class="text-sm font-medium">85%</span>
+                            </div>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-4 text-sm">
+                            <div class="tooltip">
+                                <div class="flex justify-between cursor-help">
+                                    <span class="text-muted-foreground">Expected Goals</span>
+                                    <span class="font-medium">2.3 - 2.1</span>
+                                </div>
+                                <div class="tooltip-content">
+                                    High-scoring El Clásico expected based on attacking prowess
+                                </div>
+                            </div>
+                            <div class="tooltip">
+                                <div class="flex justify-between cursor-help">
+                                    <span class="text-muted-foreground">Over 2.5 Goals</span>
+                                    <span class="font-medium text-success">Yes (72%)</span>
+                                </div>
+                                <div class="tooltip-content">
+                                    Both teams average over 2 goals per game this season
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4 pt-4 border-t border-border">
+                        <button class="w-full bg-primary text-primary-foreground py-2 px-4 rounded-lg font-medium hover:opacity-90 transition-opacity">
+                            View Detailed Analysis
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <!-- @END_COMPONENT: PredictionsPanel -->
+
+            <!-- @COMPONENT: Sidebar [League standings and team analysis] -->
+            <div class="space-y-6">
+                <!-- League Standings -->
+                <div class="bg-card border border-border rounded-lg p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-bold text-foreground">Premier League</h3>
+                        <button class="text-accent hover:text-accent/80 text-sm font-medium">View All</button>
+                    </div>
+                    
+                    <div class="space-y-3">
+                        <!-- @MAP: standings.map(team => ( -->
+                        <div class="flex items-center justify-between py-2 border-b border-border last:border-b-0">
+                            <div class="flex items-center space-x-3">
+                                <span class="text-sm font-medium text-muted-foreground w-6">1</span>
+                                <div class="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
+                                    <span class="text-white text-xs font-bold">MC</span>
+                                </div>
+                                <span class="font-medium text-sm" data-bind="team.name">Manchester City</span>
+                            </div>
+                            <div class="flex items-center space-x-4 text-sm">
+                                <span class="text-muted-foreground" data-bind="team.played">15</span>
+                                <span class="font-medium" data-bind="team.points">42</span>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-center justify-between py-2 border-b border-border">
+                            <div class="flex items-center space-x-3">
+                                <span class="text-sm font-medium text-muted-foreground w-6">2</span>
+                                <div class="w-6 h-6 bg-red-500 rounded-full flex items-center justify-center">
+                                    <span class="text-white text-xs font-bold">ARS</span>
+                                </div>
+                                <span class="font-medium text-sm">Arsenal</span>
+                            </div>
+                            <div class="flex items-center space-x-4 text-sm">
+                                <span class="text-muted-foreground">15</span>
+                                <span class="font-medium">40</span>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-center justify-between py-2 border-b border-border">
+                            <div class="flex items-center space-x-3">
+                                <span class="text-sm font-medium text-muted-foreground w-6">3</span>
+                                <div class="w-6 h-6 bg-red-600 rounded-full flex items-center justify-center">
+                                    <span class="text-white text-xs font-bold">LIV</span>
+                                </div>
+                                <span class="font-medium text-sm">Liverpool</span>
+                            </div>
+                            <div class="flex items-center space-x-4 text-sm">
+                                <span class="text-muted-foreground">15</span>
+                                <span class="font-medium">38</span>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-center justify-between py-2 border-b border-border">
+                            <div class="flex items-center space-x-3">
+                                <span class="text-sm font-medium text-muted-foreground w-6">4</span>
+                                <div class="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
+                                    <span class="text-white text-xs font-bold">CHE</span>
+                                </div>
+                                <span class="font-medium text-sm">Chelsea</span>
+                            </div>
+                            <div class="flex items-center space-x-4 text-sm">
+                                <span class="text-muted-foreground">15</span>
+                                <span class="font-medium">35</span>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-center justify-between py-2">
+                            <div class="flex items-center space-x-3">
+                                <span class="text-sm font-medium text-muted-foreground w-6">5</span>
+                                <div class="w-6 h-6 bg-white border border-border rounded-full flex items-center justify-center">
+                                    <span class="text-gray-800 text-xs font-bold">TOT</span>
+                                </div>
+                                <span class="font-medium text-sm">Tottenham</span>
+                            </div>
+                            <div class="flex items-center space-x-4 text-sm">
+                                <span class="text-muted-foreground">15</span>
+                                <span class="font-medium">33</span>
+                            </div>
+                        </div>
+                        <!-- @END_MAP )) -->
+                    </div>
+                </div>
+                
+                <!-- Team Performance Widget -->
+                <div class="bg-card border border-border rounded-lg p-6">
+                    <h3 class="text-lg font-bold text-foreground mb-4">Team Performance</h3>
+                    
+                    <div class="space-y-4">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-2">
+                                <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+                                    <span class="text-white text-xs font-bold">MC</span>
+                                </div>
+                                <span class="font-medium">Manchester City</span>
+                            </div>
+                            <div class="tooltip">
+                                <span class="text-sm font-bold text-success cursor-help">94.2</span>
+                                <div class="tooltip-content">
+                                    Performance rating based on xG, defensive solidity, and form
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="space-y-2 text-sm">
+                            <div class="flex justify-between">
+                                <span class="text-muted-foreground">Attack Rating</span>
+                                <span class="font-medium">96/100</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-muted-foreground">Defense Rating</span>
+                                <span class="font-medium">92/100</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-muted-foreground">Form (5 games)</span>
+                                <div class="flex space-x-1">
+                                    <div class="w-4 h-4 bg-success rounded-full"></div>
+                                    <div class="w-4 h-4 bg-success rounded-full"></div>
+                                    <div class="w-4 h-4 bg-success rounded-full"></div>
+                                    <div class="w-4 h-4 bg-secondary rounded-full"></div>
+                                    <div class="w-4 h-4 bg-success rounded-full"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Quick Stats -->
+                <div class="bg-card border border-border rounded-lg p-6">
+                    <h3 class="text-lg font-bold text-foreground mb-4">Today's Insights</h3>
+                    
+                    <div class="space-y-4">
+                        <div class="flex items-center space-x-3 p-3 bg-muted rounded-lg">
+                            <i class="fas fa-chart-line text-success"></i>
+                            <div>
+                                <div class="text-sm font-medium">High-Scoring Day</div>
+                                <div class="text-xs text-muted-foreground">Average of 3.2 goals per match</div>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-center space-x-3 p-3 bg-muted rounded-lg">
+                            <i class="fas fa-bullseye text-accent"></i>
+                            <div>
+                                <div class="text-sm font-medium">Prediction Accuracy</div>
+                                <div class="text-xs text-muted-foreground">82% for this gameweek</div>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-center space-x-3 p-3 bg-muted rounded-lg">
+                            <i class="fas fa-fire text-secondary"></i>
+                            <div>
+                                <div class="text-sm font-medium">Hot Streak</div>
+                                <div class="text-xs text-muted-foreground">Man City: 8 wins in a row</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- @END_COMPONENT: Sidebar -->
+        </div>
+        
+        <!-- @COMPONENT: DataVisualization [Historical data and charts] -->
+        <section class="mt-8">
+            <h2 class="text-2xl font-bold text-foreground mb-6">Performance Analytics</h2>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Goals Trend Chart -->
+                <div class="bg-card border border-border rounded-lg p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-bold text-foreground">Goals Trend</h3>
+                        <div class="flex items-center space-x-2">
+                            <div class="tooltip">
+                                <i class="fas fa-info-circle text-muted-foreground cursor-help"></i>
+                                <div class="tooltip-content">
+                                    Goals scored and conceded over the last 10 matches
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Placeholder for chart - in real implementation would use Chart.js or similar -->
+                    <div class="h-64 bg-muted rounded-lg flex items-center justify-center">
+                        <div class="text-center">
+                            <i class="fas fa-chart-area text-4xl text-muted-foreground mb-2"></i>
+                            <p class="text-muted-foreground">Interactive Goals Trend Chart</p>
+                            <p class="text-xs text-muted-foreground mt-1"><!-- @FUNCTIONALITY: Implement Chart.js line chart for goals trend --></p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Team Comparison -->
+                <div class="bg-card border border-border rounded-lg p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-bold text-foreground">Head-to-Head Comparison</h3>
+                        <select class="bg-muted border border-border rounded px-3 py-1 text-sm">
+                            <option>Last 5 meetings</option>
+                            <option>This season</option>
+                            <option>All time</option>
+                        </select>
+                    </div>
+                    
+                    <div class="space-y-4">
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm font-medium">Wins</span>
+                            <div class="flex items-center space-x-4">
+                                <div class="flex items-center space-x-2">
+                                    <span class="text-sm">Man City</span>
+                                    <div class="w-16 h-2 bg-muted rounded-full overflow-hidden">
+                                        <div class="h-full bg-primary" style="width: 60%"></div>
+                                    </div>
+                                    <span class="text-sm font-medium">3</span>
+                                </div>
+                                <span class="text-muted-foreground">vs</span>
+                                <div class="flex items-center space-x-2">
+                                    <span class="text-sm font-medium">1</span>
+                                    <div class="w-16 h-2 bg-muted rounded-full overflow-hidden">
+                                        <div class="h-full bg-secondary" style="width: 20%"></div>
+                                    </div>
+                                    <span class="text-sm">Arsenal</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm font-medium">Goals Scored</span>
+                            <div class="flex items-center space-x-4">
+                                <div class="flex items-center space-x-2">
+                                    <span class="text-sm">Man City</span>
+                                    <div class="w-16 h-2 bg-muted rounded-full overflow-hidden">
+                                        <div class="h-full bg-primary" style="width: 70%"></div>
+                                    </div>
+                                    <span class="text-sm font-medium">7</span>
+                                </div>
+                                <span class="text-muted-foreground">vs</span>
+                                <div class="flex items-center space-x-2">
+                                    <span class="text-sm font-medium">4</span>
+                                    <div class="w-16 h-2 bg-muted rounded-full overflow-hidden">
+                                        <div class="h-full bg-secondary" style="width: 40%"></div>
+                                    </div>
+                                    <span class="text-sm">Arsenal</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm font-medium">Clean Sheets</span>
+                            <div class="flex items-center space-x-4">
+                                <div class="flex items-center space-x-2">
+                                    <span class="text-sm">Man City</span>
+                                    <div class="w-16 h-2 bg-muted rounded-full overflow-hidden">
+                                        <div class="h-full bg-primary" style="width: 40%"></div>
+                                    </div>
+                                    <span class="text-sm font-medium">2</span>
+                                </div>
+                                <span class="text-muted-foreground">vs</span>
+                                <div class="flex items-center space-x-2">
+                                    <span class="text-sm font-medium">1</span>
+                                    <div class="w-16 h-2 bg-muted rounded-full overflow-hidden">
+                                        <div class="h-full bg-secondary" style="width: 20%"></div>
+                                    </div>
+                                    <span class="text-sm">Arsenal</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        <!-- @END_COMPONENT: DataVisualization -->
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-card border-t border-border mt-12">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+                <div>
+                    <div class="flex items-center space-x-2 mb-4">
+                        <div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+                            <i class="fas fa-futbol text-primary-foreground"></i>
+                        </div>
+                        <span class="font-bold text-primary">SabiScore Analytics</span>
+                    </div>
+                    <p class="text-sm text-muted-foreground">
+                        Real-time football insights powered by advanced analytics and AI predictions.
+                    </p>
+                </div>
+                
+                <div>
+                    <h4 class="font-semibold text-foreground mb-3">Features</h4>
+                    <ul class="space-y-2 text-sm text-muted-foreground">
+                        <li>Live Match Tracking</li>
+                        <li>AI Predictions</li>
+                        <li>Team Analytics</li>
+                        <li>Historical Data</li>
+                    </ul>
+                </div>
+                
+                <div>
+                    <h4 class="font-semibold text-foreground mb-3">Data Sources</h4>
+                    <ul class="space-y-2 text-sm text-muted-foreground">
+                        <li>API-Football</li>
+                        <li>Real-time Updates</li>
+                        <li>15-second Refresh</li>
+                        <li>1100+ Leagues</li>
+                    </ul>
+                </div>
+                
+                <div>
+                    <h4 class="font-semibold text-foreground mb-3">Connect</h4>
+                    <div class="flex space-x-4">
+                        <a href="#" class="text-muted-foreground hover:text-primary">
+                            <i class="fab fa-twitter"></i>
+                        </a>
+                        <a href="#" class="text-muted-foreground hover:text-primary">
+                            <i class="fab fa-facebook"></i>
+                        </a>
+                        <a href="#" class="text-muted-foreground hover:text-primary">
+                            <i class="fab fa-instagram"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="border-t border-border mt-8 pt-8 text-center">
+                <p class="text-sm text-muted-foreground">
+                    © 2025 SabiScore Analytics. All rights reserved. | Data provided by API-Football
+                </p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // TODO: Implement real-time data fetching from API-Football
+        // TODO: Add interactive chart functionality using Chart.js
+        // TODO: Implement team logo fetching from TheSportsDB or API-Football
+        // TODO: Add prediction algorithm integration
+        // TODO: Implement responsive mobile navigation
+        
+        (function() {
+            // Simulated live updates - replace with real API integration
+            function updateLiveScores() {
+                // TODO: Fetch from API-Football live endpoints
+                console.log('Updating live scores...');
+            }
+            
+            // Update every 15 seconds (as per API-Football recommendation)
+            setInterval(updateLiveScores, 15000);
+            
+            // Tooltip functionality is handled by CSS
+            // Interactive elements would be enhanced with actual data binding
+        })();
+    </script>
+</body>
+</html>

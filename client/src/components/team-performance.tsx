@@ -8,18 +8,18 @@ import type { TeamStats, Team } from "@/lib/types";
 export function TeamPerformance() {
   const { auth, isLoading: authLoading } = useAuth();
   
-  const { data: teamStats, isLoading } = useQuery({
+  const { data: teamStats, isLoading } = useQuery<TeamStats | undefined>({
     queryKey: ["/api/teams", 50, "stats"], // Manchester City example
     enabled: !authLoading && !!auth?.authenticated,
   });
 
-  const { data: teams } = useQuery({
+  const { data: teams } = useQuery<Team[] | undefined>({
     queryKey: ["/api/teams"],
     enabled: !authLoading && !!auth?.authenticated,
   });
 
   const getTeam = (teamId: number): Team | undefined => {
-    return teams?.find((team: Team) => team.id === teamId);
+    return (teams ?? []).find((team: Team) => team.id === teamId);
   };
 
   const getFormColor = (result: string) => {
@@ -103,7 +103,7 @@ export function TeamPerformance() {
             <div className="flex justify-between">
               <span className="text-muted-foreground">Form (5 games)</span>
               <div className="flex space-x-1" data-testid="team-form">
-                {(teamStats?.form || "WWWDW").split('').map((result, index) => (
+                {(teamStats?.form || "WWWDW").split('').map((result: string, index: number) => (
                   <div 
                     key={index} 
                     className={`w-4 h-4 rounded-full ${getFormColor(result)}`}
