@@ -7,6 +7,10 @@
   # Do NOT place actual secrets here - use Netlify UI environment settings
   NODE_VERSION = "18.18.0"
   NPM_VERSION = "9.8.0"
+  
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
 
 [dev]
   command = "npm run dev"
@@ -17,7 +21,7 @@
 
 [[redirects]]
   from = "/api/*"
-  to = "https://mokwkueoqemmcfxownxt.supabase.co/api/:splat"
+  to = "/.netlify/functions/api"
   status = 200
   force = true
 
