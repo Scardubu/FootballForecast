@@ -25,23 +25,23 @@ async function setupApp() {
   app.use(httpLogger);
   app.use(generalRateLimit);
   
-  // Mount routes
-  app.use('/api', healthRouter);
-  app.use('/api/auth', authRouter);
-  app.use('/api', createAuthMiddleware({ 
+  // Mount routes at root - Netlify redirect passes only the splat path
+  app.use('/', healthRouter);
+  app.use('/auth', authRouter);
+  app.use('/', createAuthMiddleware({ 
     required: true, 
     skipPaths: ['/health', '/_client-status', '/auth', '/ml/health'] 
   }));
   
-  app.use('/api/fixtures', fixturesRouter);
-  app.use('/api/leagues', leaguesRouter);
-  app.use('/api/standings', standingsRouter);
-  app.use('/api/teams', teamsRouter);
-  app.use('/api/predictions', predictionsRouter);
-  app.use('/api/scraped-data', scrapedDataRouter);
-  app.use('/api/scheduler', schedulerRouter);
-  app.use('/api/football', apiFootballRouter);
-  app.use('/api/ml', mlRouter);
+  app.use('/fixtures', fixturesRouter);
+  app.use('/leagues', leaguesRouter);
+  app.use('/standings', standingsRouter);
+  app.use('/teams', teamsRouter);
+  app.use('/predictions', predictionsRouter);
+  app.use('/scraped-data', scrapedDataRouter);
+  app.use('/scheduler', schedulerRouter);
+  app.use('/football', apiFootballRouter);
+  app.use('/ml', mlRouter);
   
   // Error handling
   app.use('/api', notFoundHandler);

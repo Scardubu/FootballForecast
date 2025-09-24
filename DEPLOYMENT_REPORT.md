@@ -18,10 +18,13 @@ The application uses a modern cloud-native architecture:
 | Date | Milestone | Status |
 |------|-----------|--------|
 | 2025-09-24 | Environment configuration | Completed |
-| 2025-09-24 | Netlify deployment | Completed |
+| 2025-09-24 | Initial Netlify deployment | Completed |
 | 2025-09-24 | Supabase database setup | Completed |
 | 2025-09-24 | CI/CD pipeline configuration | Completed |
-| 2025-09-24 | Deployment verification | Completed |
+| 2025-09-24 | Architecture refactoring to Netlify Functions | Completed |
+| 2025-09-24 | Backend API conversion to serverless | Completed |
+| 2025-09-24 | ML service endpoint configuration | Completed |
+| 2025-09-24 | Final deployment verification | In Progress |
 
 ## Environment Configuration
 
@@ -101,14 +104,33 @@ A GitHub Actions workflow has been configured for continuous integration and dep
   6. Deploy to Netlify
   7. Run database migrations
 
+## Architecture Updates
+
+### Serverless Backend Migration
+
+The application has been successfully migrated from a traditional Express.js server to a serverless architecture:
+
+- **Netlify Functions**: Backend API converted to serverless functions in `netlify/functions/api.ts`
+- **Serverless HTTP**: Using `serverless-http` to wrap Express app for Netlify Functions
+- **ML Service Mock**: Created `netlify/functions/ml-health.ts` for ML service health checks
+- **Updated Routing**: Modified `netlify.toml` to route `/api/*` to `/.netlify/functions/api`
+
+### Configuration Changes
+
+- Added `@netlify/functions` and `serverless-http` dependencies
+- Updated `netlify.toml` with functions directory and esbuild bundler
+- Modified deployment verification script to check Netlify Functions endpoints
+- Created comprehensive deployment status checker (`deployment-status.js`)
+
 ## Verification Results
 
-The deployment has been verified using the checklist in `DEPLOYMENT_VERIFICATION.md`:
+Deployment verification is in progress. The new serverless architecture includes:
 
-- **Frontend**: Successfully deployed and accessible
-- **Backend API**: All endpoints functioning correctly
-- **Database**: Successfully connected and migrations applied
-- **Security**: HTTPS enabled, authentication working, and rate limiting in place
+- **Frontend**: React SPA deployed to Netlify CDN
+- **Backend API**: Express.js app running as Netlify Functions
+- **Database**: PostgreSQL on Supabase with connection pooling
+- **ML Service**: Mock endpoint with future external service integration
+- **Security**: HTTPS, authentication, rate limiting, and CORS configured
 
 ## Next Steps
 

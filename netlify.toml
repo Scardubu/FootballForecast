@@ -1,6 +1,6 @@
 [build]
   base = "."
-  publish = "dist"
+  publish = "dist/public"
   command = "npm run build"
 
 [build.environment]
@@ -13,11 +13,12 @@
   node_bundler = "esbuild"
 
 [dev]
-  command = "npm run dev"
-  port = 3000
+  command = "npm run dev:netlify"
+  port = 8888
   targetPort = 5173
-  publish = "dist"
+  publish = "dist/public"
   framework = "vite"
+  autoLaunch = true
 
 [[redirects]]
   from = "/api/*"
