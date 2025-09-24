@@ -31,9 +31,9 @@ export function FixtureSelector({ onFixtureSelect, selectedFixture }: FixtureSel
     { id: "94", name: "Primeira Liga", country: "Portugal", flag: "🇵🇹" },
   ];
 
-  const { data: fixtures, isLoading } = useQuery<Fixture[]>({
+  const { data: fixtures, isLoading, error: fixturesError } = useQuery<Fixture[]>({
     queryKey: [`/api/fixtures?league=${selectedLeague}`],
-    enabled: !!selectedLeague && !authLoading && !!auth?.authenticated,
+    enabled: !!selectedLeague && !authLoading,
     select: (data: Fixture[]) => {
       let filtered = data;
       
@@ -57,9 +57,9 @@ export function FixtureSelector({ onFixtureSelect, selectedFixture }: FixtureSel
     }
   });
 
-  const { data: teams } = useQuery<Team[]>({
+  const { data: teams, error: teamsError } = useQuery<Team[]>({
     queryKey: ["/api/teams"],
-    enabled: !authLoading && !!auth?.authenticated,
+    enabled: !authLoading,
   });
 
   const getTeam = (teamId: number): Team | undefined => {
@@ -90,6 +90,23 @@ export function FixtureSelector({ onFixtureSelect, selectedFixture }: FixtureSel
     };
   };
 
+  const error = fixturesError || teamsError;
+  if (error) {
+    return (
+      <Card data-testid="fixture-selector">
+        <CardHeader>
+          <CardTitle>Select Match for Analysis</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="p-8 bg-destructive/10 rounded text-destructive text-center">
+            <i className="fas fa-exclamation-triangle text-3xl mb-2"></i>
+            <div className="font-semibold">Unable to load fixtures</div>
+            <div className="text-sm text-muted-foreground">{error instanceof Error ? error.message : 'Network error. Please try again later.'}</div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
   if (authLoading || isLoading) {
     return (
       <Card data-testid="fixture-selector">

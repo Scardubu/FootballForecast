@@ -67,6 +67,27 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
   const heartbeatTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const getWebSocketUrl = useCallback(() => {
+    // Managed provider via env flags (Vite)
+    const managedEnabled = (import.meta as any).env?.VITE_WS_ENABLED === 'true';
+    const managedUrl = (import.meta as any).env?.VITE_WS_URL as string | undefined;
+    const managedToken = (import.meta as any).env?.VITE_WS_AUTH_TOKEN as string | undefined;
+
+    if (managedEnabled && managedUrl) {
+      // Append token as query param if provided (headers not supported in WebSocket constructor)
+      try {
+        const url = new URL(managedUrl);
+        if (managedToken) url.searchParams.set('token', managedToken);
+        return url.toString();
+      } catch {
+        // Fallback to raw if URL parsing fails
+        return managedToken ? `${managedUrl}${managedUrl.includes('?') ? '&' : '?'}token=${encodeURIComponent(managedToken)}` : managedUrl;
+      }
+    }
+
+    // Production fallback for Netlify: WebSockets not supported if no managed provider configured
+    if (process.env.NODE_ENV === 'production' && window.location.hostname.endsWith('netlify.app')) {
+      return null;
+    }
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.host;
     return `${protocol}//${host}/ws`;
@@ -105,7 +126,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
           // Update live fixtures in React Query cache
           if (message.data?.fixtures) {
             queryClient.setQueryData(['/api/fixtures/live'], message.data.fixtures);
-            console.log('🔄 Live fixtures updated via WebSocket:', message.data.fixtures.length, 'matches');
+            if (process.env.NODE_ENV === 'development') console.log('🔄 Live fixtures updated via WebSocket:', message.data.fixtures.length, 'matches');
           }
           break;
           
@@ -126,13 +147,13 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
                   : fixture
               );
             });
-            console.log('⚽ Score update via WebSocket:', message.data.fixtureId, message.data.homeScore, '-', message.data.awayScore);
+            if (process.env.NODE_ENV === 'development') console.log('⚽ Score update via WebSocket:', message.data.fixtureId, message.data.homeScore, '-', message.data.awayScore);
           }
           break;
           
         case 'match_events':
           // Handle real-time match events
-          console.log('📱 Match event received:', message.data);
+          if (process.env.NODE_ENV === 'development') console.log('📱 Match event received:', message.data);
           break;
           
         case 'pong':
@@ -141,20 +162,20 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
           break;
           
         default:
-          console.log('📡 WebSocket message received:', message);
+          if (process.env.NODE_ENV === 'development') console.log('📡 WebSocket message received:', message);
       }
       
       // Call custom onMessage handler
       onMessage?.(message);
       
     } catch (error) {
-      console.error('❌ Failed to parse WebSocket message:', error);
+      if (process.env.NODE_ENV === 'development') console.error('❌ Failed to parse WebSocket message:', error);
     }
   }, [onMessage, startHeartbeat]);
 
   const connect = useCallback(() => {
     if (isConnecting || (wsRef.current && wsRef.current.readyState === WebSocket.CONNECTING)) {
-      console.log('🔄 WebSocket connection already in progress, skipping...');
+      if (process.env.NODE_ENV === 'development') console.log('🔄 WebSocket connection already in progress, skipping...');
       return;
     }
 
@@ -164,12 +185,17 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
 
     try {
       const wsUrl = getWebSocketUrl();
-      console.log('🔗 Connecting to WebSocket:', wsUrl);
+      if (!wsUrl) {
+        setError('Live updates are not available in production on Netlify.');
+        setIsConnecting(false);
+        return;
+      }
+      if (process.env.NODE_ENV === 'development') console.log('🔗 Connecting to WebSocket:', wsUrl);
       
       wsRef.current = new WebSocket(wsUrl);
 
       wsRef.current.onopen = () => {
-        console.log('✅ WebSocket connected successfully');
+        if (process.env.NODE_ENV === 'development') console.log('✅ WebSocket connected successfully');
         setIsConnected(true);
         setIsConnecting(false);
         setError(null);
@@ -183,7 +209,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
 
         // Authentication now handled automatically via secure handshake cookies
         // No need to send explicit auth messages - server validates session on connect
-        console.log('🔐 WebSocket authentication handled via secure handshake');
+        if (process.env.NODE_ENV === 'development') console.log('🔐 WebSocket authentication handled via secure handshake');
 
         // Re-subscribe to all topics
         subscriptionsRef.current.forEach(topic => {
@@ -201,7 +227,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
       wsRef.current.onmessage = handleWebSocketMessage;
 
       wsRef.current.onclose = (event) => {
-        console.log('🔌 WebSocket disconnected:', event.code, event.reason);
+        if (process.env.NODE_ENV === 'development') console.log('🔌 WebSocket disconnected:', event.code, event.reason);
         setIsConnected(false);
         setIsConnecting(false);
         clearTimeouts();
@@ -216,7 +242,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
             reconnectAttempts: reconnectAttemptsRef.current 
           }));
           
-          console.log(`🔄 Attempting to reconnect (${reconnectAttemptsRef.current}/${maxReconnectAttempts})...`);
+          if (process.env.NODE_ENV === 'development') console.log(`🔄 Attempting to reconnect (${reconnectAttemptsRef.current}/${maxReconnectAttempts})...`);
           
           reconnectTimeoutRef.current = setTimeout(() => {
             connect();
@@ -225,14 +251,14 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
       };
 
       wsRef.current.onerror = (error) => {
-        console.error('❌ WebSocket error:', error);
+        if (process.env.NODE_ENV === 'development') console.error('❌ WebSocket error:', error);
         setError('WebSocket connection failed');
         setIsConnecting(false);
         onError?.(error);
       };
 
     } catch (error) {
-      console.error('❌ Failed to create WebSocket:', error);
+      if (process.env.NODE_ENV === 'development') console.error('❌ Failed to create WebSocket:', error);
       setError('Failed to create WebSocket connection');
       setIsConnecting(false);
     }
@@ -273,7 +299,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
         data: { topic }
       }));
       setConnectionStats(prev => ({ ...prev, messagesSent: prev.messagesSent + 1 }));
-      console.log('📡 Subscribed to WebSocket topic:', topic);
+      if (process.env.NODE_ENV === 'development') console.log('📡 Subscribed to WebSocket topic:', topic);
     }
   }, []);
 
@@ -286,7 +312,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
         data: { topic }
       }));
       setConnectionStats(prev => ({ ...prev, messagesSent: prev.messagesSent + 1 }));
-      console.log('📡 Unsubscribed from WebSocket topic:', topic);
+      if (process.env.NODE_ENV === 'development') console.log('📡 Unsubscribed from WebSocket topic:', topic);
     }
   }, []);
 
@@ -311,7 +337,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
                        authUserRef.current !== auth?.user?.id;
     
     if (authChanged && wsRef.current?.readyState === WebSocket.OPEN) {
-      console.log('🔄 Auth state changed, reconnecting WebSocket for fresh authentication');
+      if (process.env.NODE_ENV === 'development') console.log('🔄 Auth state changed, reconnecting WebSocket for fresh authentication');
       disconnect();
       setTimeout(() => connect(), 100); // Brief delay for clean reconnect
     }

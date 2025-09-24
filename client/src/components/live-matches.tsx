@@ -6,6 +6,7 @@ import { TeamDisplay } from "@/components/team-display";
 import { useWebSocket } from "@/hooks/use-websocket";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { MatchCardSkeleton, SkeletonGrid } from "@/components/loading";
+import { Grid } from "@/components/layout/grid";
 import type { Fixture, Team } from "@shared/schema";
 
 export function LiveMatches() {
@@ -20,16 +21,16 @@ export function LiveMatches() {
     }
   });
   
-  const { data: liveFixtures, isLoading } = useQuery<Fixture[]>({
+  const { data: liveFixtures, isLoading, error } = useQuery<Fixture[]>({
     queryKey: ["/api/fixtures/live"],
     // Use WebSocket when connected and stable, fallback to polling otherwise
     refetchInterval: wsConnected && !wsConnecting ? false : 15000,
-    enabled: !authLoading && !!auth?.authenticated,
+    enabled: !authLoading, // allow public read-only access
   });
 
   const { data: teams } = useQuery<Team[]>({
     queryKey: ["/api/teams"],
-    enabled: !authLoading && !!auth?.authenticated,
+    enabled: !authLoading, // allow public read-only access
   });
 
   const getTeam = (teamId: number): Team | undefined => {
@@ -53,22 +54,28 @@ export function LiveMatches() {
 
   if (authLoading || isLoading) {
     return (
-      <section className="mb-8 animate-fade-in">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-foreground">Live Matches</h2>
-          <div className="h-4 w-32 bg-muted animate-pulse rounded" />
-        </div>
+      <div className="animate-fade-in">
         <SkeletonGrid count={3} component={MatchCardSkeleton} />
-      </section>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="animate-fade-in">
+        <div className="p-8 bg-destructive/10 rounded text-destructive text-center">
+          <i className="fas fa-exclamation-triangle text-3xl mb-2"></i>
+          <div className="font-semibold">Unable to load live matches</div>
+          <div className="text-sm text-muted-foreground">{error instanceof Error ? error.message : 'Network error. Please try again later.'}</div>
+        </div>
+      </div>
     );
   }
 
   return (
     <ErrorBoundary>
-      <section className="mb-8">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-foreground">Live Matches</h2>
-        <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+      <div>
+        <div className="flex items-center space-x-2 text-sm text-muted-foreground mb-4">
           {wsConnecting ? (
             <>
               <i className="fas fa-spinner fa-spin text-info"></i>
@@ -87,9 +94,8 @@ export function LiveMatches() {
             </>
           )}
         </div>
-      </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <Grid cols={{ base: 1, md: 2, lg: 3 }} gap={6}>
         {liveFixtures?.map((fixture: Fixture) => {
           const homeTeam = fixture.homeTeamId ? getTeam(fixture.homeTeamId) : undefined;
           const awayTeam = fixture.awayTeamId ? getTeam(fixture.awayTeamId) : undefined;
@@ -167,8 +173,8 @@ export function LiveMatches() {
             </CardContent>
           </Card>
         )}
-        </div>
-      </section>
+        </Grid>
+      </div>
     </ErrorBoundary>
   );
 }

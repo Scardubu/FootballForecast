@@ -1,3 +1,4 @@
+
 # ⚽ Football Forecast Analytics
 
 A comprehensive football prediction and analytics platform combining real-time data scraping, machine learning predictions, and modern web technologies. Built with production-grade UX/UI, accessibility features, and performance optimizations.
@@ -14,23 +15,27 @@ A comprehensive football prediction and analytics platform combining real-time d
 ### Installation
 
 1. **Clone the repository**
+
    ```bash
    git clone <repository-url>
    cd FootballForecast
    ```
 
 2. **Setup environment variables**
+
    ```bash
    cp .env.example .env
    # Edit .env with your configuration (see Environment Setup section)
    ```
 
 3. **Install Node.js dependencies**
+
    ```bash
    npm install
    ```
 
 4. **Install Python dependencies**
+
    ```bash
    # Using uv (recommended)
    pip install uv
@@ -41,6 +46,7 @@ A comprehensive football prediction and analytics platform combining real-time d
    ```
 
 5. **Setup database**
+
    ```bash
    # Option 1: Local PostgreSQL
    createdb football_forecast
@@ -53,6 +59,7 @@ A comprehensive football prediction and analytics platform combining real-time d
    ```
 
 6. **Start the application**
+
    ```bash
    # Development mode (starts both Node.js and Python services)
    npm run dev
@@ -63,42 +70,47 @@ A comprehensive football prediction and analytics platform combining real-time d
    ```
 
 7. **Open your browser**
-   ```
+
+   ```txt
    http://localhost:5000
-   ```
 
 ## 🏗️ Architecture
 
 ### Technology Stack
 
-**Frontend**
+#### Frontend
+
 - React 18 with TypeScript
 - Vite for fast development and building
 - Tailwind CSS for styling
 - Radix UI for components
 - React Query for state management
 
-**Backend**
+#### Backend
+
 - Node.js with Express
 - TypeScript for type safety
 - Drizzle ORM with PostgreSQL
 - WebSocket for real-time updates
 - Session-based authentication
 
-**ML Service**
+#### ML Service
+
 - Python with FastAPI
 - XGBoost for predictions
 - Pandas/NumPy for data processing
 - Playwright for web scraping
 
-**Database**
+#### Database
+
 - PostgreSQL with comprehensive schema
 - Optimized indexes for performance
 - Foreign key relationships for data integrity
 
+{{ ... }}
 ### Project Structure
 
-```
+```text
 FootballForecast/
 ├── client/                 # React frontend
 │   ├── src/
@@ -141,6 +153,10 @@ ML_SERVICE_URL=http://localhost:8000
 
 # Session Security
 SESSION_SECRET=your_generated_secret_here
+
+# API Security
+API_BEARER_TOKEN=your_secure_token_here
+SCRAPER_AUTH_TOKEN=your_secure_token_here
 
 # Optional: External API
 API_FOOTBALL_KEY=your_api_key_here
@@ -192,20 +208,21 @@ npx drizzle-kit generate
 npx drizzle-kit studio
 ```
 
-### Sample Data
+### Data Management
 
-The application includes comprehensive sample data that automatically loads when external APIs are unavailable:
+The application features a robust, automated data management system to ensure all information is up-to-date:
 
-- Premier League and La Liga fixtures
-- Team standings and statistics
-- Historical match data
-- Prediction samples
+- **Automatic Data Seeding**: On first startup, the application checks if the database is empty. If it is, it automatically seeds the database with data for the top European leagues from the API-Football service.
+- **Scheduled Updates**: A scheduler runs in the background to periodically refresh data, including:
+  - **Standings**: Updated every 6 hours.
+  - **Fixtures**: Updated every hour.
+- **Live ML Predictions**: Predictions are generated in real-time by the Python ML service, with a 5-minute cache to optimize performance.
 
 ## 🤖 ML Service
 
 ### Features
 
-- **Match Predictions**: Win/Draw/Loss probabilities
+- **Live Match Predictions**: Real-time Win/Draw/Loss probabilities from the integrated Python ML service.
 - **Expected Goals**: xG calculations for both teams
 - **Market Predictions**: Over/Under, Both Teams to Score
 - **Feature Analysis**: Key factors influencing predictions
@@ -279,13 +296,13 @@ SCRAPING_INTERVAL_STANDINGS=7200000 # 2 hours
 - SQL injection prevention
 - XSS protection
 
-## 🚀 Deployment
+## Deployment
 
 ### Production Deployment
 
-The application is deployed to production environments:
-
-- **Frontend & API**: [https://football-forecast.netlify.app](https://football-forecast.netlify.app)
+The application is deployed to a production environment on Netlify:
+- **Frontend**: [https://football-forecast.netlify.app](https://football-forecast.netlify.app)
+- **API**: Served via Netlify Functions and reachable through the site domain using a redirect from `/api/*` to `/.netlify/functions/api/:splat`
 - **Database**: Supabase PostgreSQL at [https://mokwkueoqemmcfxownxt.supabase.co](https://mokwkueoqemmcfxownxt.supabase.co)
 
 ### Deployment Documentation
@@ -304,6 +321,8 @@ npm run build
 # Start production server
 npm start
 ```
+
+Note: In production on Netlify, the SPA is published from `dist/public` and the backend runs as Netlify Functions in `netlify/functions`. The `/api/*` path is redirected to `/.netlify/functions/api/:splat`.
 
 ### Environment Variables for Production
 
@@ -332,6 +351,35 @@ netlify deploy --prod
 ```
 
 See `.github/workflows/deploy.yml` for the complete CI/CD configuration.
+
+### Production Endpoint Testing
+
+```bash
+# Frontend
+open https://football-forecast.netlify.app
+
+# API (through redirect)
+curl -i https://football-forecast.netlify.app/api/health
+curl -i https://football-forecast.netlify.app/api/leagues -H "Authorization: Bearer $API_BEARER_TOKEN"
+
+# Functions (direct paths, for debugging)
+curl -i https://football-forecast.netlify.app/.netlify/functions/api/health
+curl -i https://football-forecast.netlify.app/.netlify/functions/ml-health
+```
+
+### Local Development with Netlify Emulation
+
+```bash
+# Terminal A: run Vite dev server (client)
+npm run dev:netlify  # serves on http://localhost:5173
+
+# Terminal B: run Netlify dev to proxy SPA + Functions
+npx netlify dev      # serves on http://localhost:8888
+
+# Test locally
+curl -i http://localhost:8888/api/health
+curl -i http://localhost:8888/.netlify/functions/api/health
+```
 
 ## 🧪 Testing
 
@@ -401,6 +449,7 @@ npm run format       # Format code
 #### VS Code (Recommended)
 
 Install recommended extensions:
+
 - TypeScript and JavaScript Language Features
 - Python
 - Tailwind CSS IntelliSense
@@ -417,7 +466,8 @@ Install recommended extensions:
 
 ### Common Issues
 
-**Database Connection Failed**
+#### Database Connection Failed
+
 ```bash
 # Check PostgreSQL is running
 pg_isready -h localhost -p 5432
@@ -426,7 +476,8 @@ pg_isready -h localhost -p 5432
 DATABASE_URL=postgresql://postgres:password@localhost:5432/football_forecast
 ```
 
-**Python Service Not Starting**
+#### Python Service Not Starting
+
 ```bash
 # Check Python version
 python --version  # Should be 3.11+
@@ -438,7 +489,8 @@ pip install -r requirements.txt
 netstat -an | grep 8000
 ```
 
-**Build Errors**
+#### Build Errors
+
 ```bash
 # Clear node_modules and reinstall
 rm -rf node_modules package-lock.json
@@ -448,7 +500,8 @@ npm install
 rm -rf dist .vite
 ```
 
-**Permission Errors (Windows)**
+#### Permission Errors (Windows)
+
 ```bash
 # Run as administrator or check file permissions
 # Ensure antivirus isn't blocking Node.js/Python
@@ -471,7 +524,7 @@ python -m debugpy --listen 5678 src/api/main.py
 
 ### Node.js API Endpoints
 
-```
+```http
 GET    /api/health              # Health check
 GET    /api/leagues             # Get all leagues
 GET    /api/fixtures            # Get fixtures
@@ -482,7 +535,7 @@ POST   /api/auth/register       # User registration
 
 ### Python ML API
 
-```
+```http
 GET    /health                  # ML service health
 POST   /predict                 # Single prediction
 POST   /predict/batch           # Batch predictions
@@ -498,6 +551,7 @@ POST   /train                   # Retrain model
 4. Push to branch: `git push origin feature/amazing-feature`
 5. Open a Pull Request
 
+
 ### Development Guidelines
 
 - Follow TypeScript/Python type annotations
@@ -506,9 +560,11 @@ POST   /train                   # Retrain model
 - Follow existing code style
 - Test across different platforms
 
+
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
 
 ## 📚 Documentation
 
@@ -516,13 +572,16 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **[Component Documentation](COMPONENT_DOCS.md)** - Detailed component API reference
 - **[Migration Report](MIGRATION_REPORT.md)** - Platform migration details
 
+
 ## 🎨 Production Features
 
 ### UX/UI Enhancements
+
 - **Modern Design System**: Inter font, consistent spacing, semantic colors
 - **Responsive Design**: Mobile-first approach with breakpoint optimization
 - **Smooth Animations**: Subtle hover effects, transitions, and loading states
 - **Glass Effects**: Modern glassmorphism for enhanced visual appeal
+
 
 ### Accessibility (WCAG 2.1 AA)
 - **Screen Reader Support**: ARIA labels, semantic HTML, live regions
@@ -530,11 +589,13 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **High Contrast**: Support for high contrast and reduced motion preferences
 - **Skip Navigation**: Skip links for efficient screen reader navigation
 
+
 ### Performance Optimizations
 - **Lazy Loading**: Code splitting for heavy components
 - **Error Boundaries**: Graceful error handling at component level
 - **Loading States**: Skeleton screens and progressive loading
 - **Bundle Optimization**: Tree shaking and dynamic imports
+
 
 ### Developer Experience
 - **TypeScript**: Full type safety across frontend and backend
@@ -542,12 +603,13 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Testing Support**: Built-in test IDs and accessibility testing
 - **Development Tools**: Hot reload, error overlays, debugging support
 
+
 ## 🙏 Acknowledgments
 
 - **API-Football** for football data API
 - **FBRef** and **WhoScored** for statistical data
 - **PostgreSQL** for robust local and cloud database hosting
-- **Vercel** for deployment platform
+- **Netlify** for deployment platform
 - **Radix UI** for accessible component primitives
 - **Tailwind CSS** for utility-first styling
 - Open source community for amazing tools and libraries

@@ -203,7 +203,7 @@ export class MemStorage implements IStorage {
       createdAt: new Date(),
       fixtureId: data.fixtureId ?? null,
       teamId: data.teamId ?? null,
-      confidence: String(data.confidence ?? "0") // Safely convert number to string with fallback
+      confidence: Number(data.confidence ?? 0) // Ensure numeric type for downstream calculations
     };
     this.scrapedData.set(id, scrapedData);
     return scrapedData;

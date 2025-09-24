@@ -180,16 +180,29 @@ const TeamComparisonCard = React.memo(function TeamComparisonCard({
 export const DataVisualization = React.memo(function DataVisualization() {
   const { auth, isLoading: authLoading } = useAuth();
   
-  const { data: teamStats, isLoading: statsLoading } = useQuery<TeamStats[]>({
-    queryKey: ["/api/team-stats"],
-    enabled: !authLoading && !!auth?.authenticated,
+  const { data: teamStats, isLoading: statsLoading, error: statsError } = useQuery<TeamStats[]>({
+    queryKey: ["/api/teams", "stats"],
+    enabled: !authLoading,
   });
 
-  const { data: teams } = useQuery<Team[]>({
+  const { data: teams, error: teamsError } = useQuery<Team[]>({
     queryKey: ["/api/teams"],
-    enabled: !authLoading && !!auth?.authenticated,
+    enabled: !authLoading,
   });
 
+  const error = statsError || teamsError;
+  if (error) {
+    return (
+      <section className="mt-8">
+        <h2 className="text-2xl font-bold text-foreground mb-6">Performance Analytics</h2>
+        <div className="p-8 bg-destructive/10 rounded text-destructive text-center">
+          <i className="fas fa-exclamation-triangle text-3xl mb-2"></i>
+          <div className="font-semibold">Unable to load performance analytics</div>
+          <div className="text-sm text-muted-foreground">{error instanceof Error ? error.message : 'Network error. Please try again later.'}</div>
+        </div>
+      </section>
+    );
+  }
   if (authLoading || statsLoading) {
     return (
       <section className="mt-8">

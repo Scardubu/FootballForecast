@@ -1,15 +1,18 @@
 import { useState } from "react";
-import { Header } from "@/components/header";
+import { AppLayout } from "@/components/layout/app-layout";
 import { LiveMatches } from "@/components/live-matches";
 import { PredictionsPanel } from "@/components/predictions-panel";
 import { LeagueStandings } from "@/components/league-standings";
-import { QuickStats } from "@/components/team-performance";
+import { QuickStats } from "@/components/quick-stats";
 import { FixtureSelector } from "@/components/fixture-selector";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { LazyWrapper, LazyDataVisualization, LazyScrapedInsights, LazyTeamPerformance } from "@/components/lazy-wrapper";
-import { SkipToMain, useScreenReaderAnnouncement } from "@/components/accessibility";
+import { DetailedPredictionAnalysis } from "@/components/detailed-prediction-analysis";
+import { useScreenReaderAnnouncement } from "@/components/accessibility";
+import { Section } from "@/components/layout/section";
+import { Grid } from "@/components/layout/grid";
 import type { Fixture } from "@shared/schema";
 
 export default function Dashboard() {
@@ -23,15 +26,13 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <SkipToMain />
+    <AppLayout>
       <AnnouncementRegion />
-      <Header />
-      
-      <main id="main-content" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" role="main">
-        {/* Hero Section with Platform Stats */}
-        <div className="mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+
+      <div className="space-y-8">
+        {/* Platform Stats */}
+        <Section title="Platform Stats" description="Coverage, performance and update cadence">
+          <Grid cols={{ base: 1, md: 4 }} gap={4}>
             <Card>
               <CardContent className="p-4">
                 <div className="flex items-center space-x-2">
@@ -79,8 +80,8 @@ export default function Dashboard() {
                 </div>
               </CardContent>
             </Card>
-          </div>
-        </div>
+          </Grid>
+        </Section>
         
         {/* Main Dashboard Tabs */}
         <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
@@ -106,23 +107,31 @@ export default function Dashboard() {
 
           {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-6">
-            <LiveMatches />
-            
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <Section title="Live Matches" description="Real-time match updates and scores">
+              <LiveMatches />
+            </Section>
+
+            <Grid cols={{ base: 1, lg: 3 }} gap={8}>
               <div className="lg:col-span-2 space-y-6">
-                <PredictionsPanel />
+                <Section title="AI Predictions" description="Model-driven forecasts with confidence">
+                  <PredictionsPanel />
+                </Section>
               </div>
-              
+
               <div className="space-y-6">
-                <LeagueStandings />
-                <QuickStats />
+                <Section title="Standings" description="League table and team form">
+                  <LeagueStandings />
+                </Section>
+                <Section title="Quick Stats" description="At-a-glance metrics">
+                  <QuickStats />
+                </Section>
               </div>
-            </div>
+            </Grid>
           </TabsContent>
 
           {/* AI Predictions Tab */}
           <TabsContent value="predictions" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <Grid cols={{ base: 1, lg: 2 }} gap={8}>
               <FixtureSelector 
                 onFixtureSelect={(fixture) => setSelectedFixture(fixture)}
                 selectedFixture={selectedFixture}
@@ -130,65 +139,7 @@ export default function Dashboard() {
               
               <div className="space-y-6">
                 {selectedFixture ? (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center space-x-2">
-                        <i className="fas fa-chart-line text-primary"></i>
-                        <span>Detailed Analysis</span>
-                        <Badge variant="outline" className="ml-auto">
-                          Live AI
-                        </Badge>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-4">
-                        <div className="text-center p-6 bg-muted/50 rounded-lg">
-                          <i className="fas fa-cog fa-spin text-2xl text-muted-foreground mb-2"></i>
-                          <div className="text-sm text-muted-foreground">
-                            Analyzing match with ML models...
-                          </div>
-                        </div>
-                        
-                        <div className="grid grid-cols-2 gap-4 text-sm">
-                          <div>
-                            <div className="font-medium mb-2">Data Sources</div>
-                            <div className="space-y-1">
-                              <div className="flex items-center space-x-2">
-                                <i className="fas fa-check text-success text-xs"></i>
-                                <span className="text-muted-foreground">FBref (xG Data)</span>
-                              </div>
-                              <div className="flex items-center space-x-2">
-                                <i className="fas fa-check text-success text-xs"></i>
-                                <span className="text-muted-foreground">WhoScored (Ratings)</span>
-                              </div>
-                              <div className="flex items-center space-x-2">
-                                <i className="fas fa-check text-success text-xs"></i>
-                                <span className="text-muted-foreground">Team Form</span>
-                              </div>
-                            </div>
-                          </div>
-                          
-                          <div>
-                            <div className="font-medium mb-2">ML Features</div>
-                            <div className="space-y-1">
-                              <div className="flex items-center space-x-2">
-                                <i className="fas fa-brain text-accent text-xs"></i>
-                                <span className="text-muted-foreground">xG Analysis</span>
-                              </div>
-                              <div className="flex items-center space-x-2">
-                                <i className="fas fa-brain text-accent text-xs"></i>
-                                <span className="text-muted-foreground">Form Trends</span>
-                              </div>
-                              <div className="flex items-center space-x-2">
-                                <i className="fas fa-brain text-accent text-xs"></i>
-                                <span className="text-muted-foreground">H2H History</span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  <DetailedPredictionAnalysis fixtureId={selectedFixture.id} />
                 ) : (
                   <Card>
                     <CardContent className="p-8 text-center">
@@ -207,7 +158,7 @@ export default function Dashboard() {
                   <LazyTeamPerformance />
                 </LazyWrapper>
               </div>
-            </div>
+            </Grid>
           </TabsContent>
 
           {/* Analytics Tab */}
@@ -216,7 +167,7 @@ export default function Dashboard() {
               <LazyDataVisualization />
             </LazyWrapper>
             
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <Grid cols={{ base: 1, lg: 2 }} gap={8}>
               <Card>
                 <CardHeader>
                   <CardTitle>Performance Metrics</CardTitle>
@@ -257,24 +208,24 @@ export default function Dashboard() {
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="text-sm">xG Data Coverage</span>
-                      <span className="text-sm font-medium">94%</span>
+                      <span className="text-sm font-medium">{isLoadingStats ? '...' : `${stats.dataQuality.xgDataCoverage}%`}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm">Team Form Data</span>
-                      <span className="text-sm font-medium">98%</span>
+                      <span className="text-sm font-medium">{isLoadingStats ? '...' : `${stats.dataQuality.teamFormData}%`}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm">Injury Reports</span>
-                      <span className="text-sm font-medium">76%</span>
+                      <span className="text-sm font-medium">{isLoadingStats ? '...' : `${stats.dataQuality.injuryReports}%`}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm">H2H History</span>
-                      <span className="text-sm font-medium">89%</span>
+                      <span className="text-sm font-medium">{isLoadingStats ? '...' : `${stats.dataQuality.h2hHistory}%`}</span>
                     </div>
                   </div>
                 </CardContent>
               </Card>
-            </div>
+            </Grid>
           </TabsContent>
 
           {/* Insights Tab */}
@@ -284,67 +235,7 @@ export default function Dashboard() {
             </LazyWrapper>
           </TabsContent>
         </Tabs>
-      </main>
-      
-      {/* Footer */}
-      <footer className="bg-card border-t border-border mt-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-            <div>
-              <div className="flex items-center space-x-2 mb-4">
-                <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                  <i className="fas fa-futbol text-primary-foreground"></i>
-                </div>
-                <span className="font-bold text-primary">SabiScore Analytics</span>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                Real-time football insights powered by advanced analytics and AI predictions.
-              </p>
-            </div>
-            
-            <div>
-              <h4 className="font-semibold text-foreground mb-3">Features</h4>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li>Live Match Tracking</li>
-                <li>AI Predictions</li>
-                <li>Team Analytics</li>
-                <li>Historical Data</li>
-              </ul>
-            </div>
-            
-            <div>
-              <h4 className="font-semibold text-foreground mb-3">Data Sources</h4>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li>API-Football</li>
-                <li>Real-time Updates</li>
-                <li>15-second Refresh</li>
-                <li>1100+ Leagues</li>
-              </ul>
-            </div>
-            
-            <div>
-              <h4 className="font-semibold text-foreground mb-3">Connect</h4>
-              <div className="flex space-x-4">
-                <a href="#" className="text-muted-foreground hover:text-primary">
-                  <i className="fab fa-twitter"></i>
-                </a>
-                <a href="#" className="text-muted-foreground hover:text-primary">
-                  <i className="fab fa-facebook"></i>
-                </a>
-                <a href="#" className="text-muted-foreground hover:text-primary">
-                  <i className="fab fa-instagram"></i>
-                </a>
-              </div>
-            </div>
-          </div>
-          
-          <div className="border-t border-border mt-8 pt-8 text-center">
-            <p className="text-sm text-muted-foreground">
-              © 2025 SabiScore Analytics. All rights reserved. | Data provided by API-Football
-            </p>
-          </div>
-        </div>
-      </footer>
-    </div>
+      </div>
+    </AppLayout>
   );
 }

@@ -64,6 +64,7 @@ export const predictions = pgTable("predictions", {
   bothTeamsScore: decimal("both_teams_score", { precision: 5, scale: 2 }),
   over25Goals: decimal("over_25_goals", { precision: 5, scale: 2 }),
   confidence: decimal("confidence", { precision: 5, scale: 2 }),
+  mlModel: text("ml_model"),
   createdAt: timestamp("created_at").default(sql`now()`),
 }, (table) => ({
   // Index for performance on fixture-based queries
@@ -153,8 +154,8 @@ export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type League = typeof leagues.$inferSelect;
 export type Team = typeof teams.$inferSelect;
-export type Fixture = typeof fixtures.$inferSelect;
 export type Prediction = typeof predictions.$inferSelect;
+export type Fixture = typeof fixtures.$inferSelect;
 export type Standing = typeof standings.$inferSelect;
 export type TeamStats = typeof teamStats.$inferSelect;
 export type ScrapedData = typeof scrapedData.$inferSelect;

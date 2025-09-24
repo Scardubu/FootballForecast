@@ -8,14 +8,14 @@ import type { TeamStats, Team } from "@/lib/types";
 export function TeamPerformance() {
   const { auth, isLoading: authLoading } = useAuth();
   
-  const { data: teamStats, isLoading } = useQuery<TeamStats | undefined>({
+  const { data: teamStats, isLoading, error: statsError } = useQuery<TeamStats | undefined>({
     queryKey: ["/api/teams", 50, "stats"], // Manchester City example
-    enabled: !authLoading && !!auth?.authenticated,
+    enabled: !authLoading, // allow public read without auth
   });
 
-  const { data: teams } = useQuery<Team[] | undefined>({
+  const { data: teams, error: teamsError } = useQuery<Team[] | undefined>({
     queryKey: ["/api/teams"],
-    enabled: !authLoading && !!auth?.authenticated,
+    enabled: !authLoading, // allow public read without auth
   });
 
   const getTeam = (teamId: number): Team | undefined => {
@@ -31,6 +31,20 @@ export function TeamPerformance() {
     }
   };
 
+  const error = statsError || teamsError;
+  if (error) {
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <div className="p-8 bg-destructive/10 rounded text-destructive text-center">
+            <i className="fas fa-exclamation-triangle text-3xl mb-2"></i>
+            <div className="font-semibold">Unable to load team performance</div>
+            <div className="text-sm text-muted-foreground">{error instanceof Error ? error.message : 'Network error. Please try again later.'}</div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
   if (authLoading || isLoading) {
     return (
       <Card>
@@ -111,43 +125,6 @@ export function TeamPerformance() {
                   ></div>
                 ))}
               </div>
-            </div>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// Quick Stats Component
-export function QuickStats() {
-  return (
-    <Card data-testid="quick-stats">
-      <CardContent className="p-6">
-        <h3 className="text-lg font-bold text-foreground mb-4">Today's Insights</h3>
-        
-        <div className="space-y-4">
-          <div className="flex items-center space-x-3 p-3 bg-muted rounded-lg">
-            <i className="fas fa-chart-line text-success"></i>
-            <div>
-              <div className="text-sm font-medium" data-testid="insight-scoring">High-Scoring Day</div>
-              <div className="text-xs text-muted-foreground">Average of 3.2 goals per match</div>
-            </div>
-          </div>
-          
-          <div className="flex items-center space-x-3 p-3 bg-muted rounded-lg">
-            <i className="fas fa-bullseye text-accent"></i>
-            <div>
-              <div className="text-sm font-medium" data-testid="insight-accuracy">Prediction Accuracy</div>
-              <div className="text-xs text-muted-foreground">82% for this gameweek</div>
-            </div>
-          </div>
-          
-          <div className="flex items-center space-x-3 p-3 bg-muted rounded-lg">
-            <i className="fas fa-fire text-secondary"></i>
-            <div>
-              <div className="text-sm font-medium" data-testid="insight-streak">Hot Streak</div>
-              <div className="text-xs text-muted-foreground">Man City: 8 wins in a row</div>
             </div>
           </div>
         </div>

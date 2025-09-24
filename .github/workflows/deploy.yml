@@ -1,4 +1,4 @@
-name: Deploy Football Forecast
+name: Deploy Production
 
 on:
   push:
@@ -11,10 +11,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: '18.18.0'
           cache: 'npm'
@@ -22,26 +22,28 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run type check
+      - name: Run Lint & Type Check
         run: npm run check
+
+      - name: Run Tests
+        run: npm test
 
       - name: Build application
         run: npm run build
         env:
           NODE_ENV: production
+          # Ensure any required build-time env vars are passed here
+          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+
+      - name: Run database migrations
+        run: npm run db:push
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
       - name: Deploy to Netlify
-        uses: netlify/actions/cli@master
+        uses: netlify/actions/cli@v10 # Pin to a specific version
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
         with:
-          args: deploy --prod
-          secrets: '["NETLIFY_AUTH_TOKEN", "NETLIFY_SITE_ID"]'
-
-      - name: Run database migrations
-        run: node migrate-supabase.js
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          args: deploy --prod --dir=dist # Explicitly set the directory

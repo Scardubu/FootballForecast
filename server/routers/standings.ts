@@ -143,6 +143,16 @@ async function seedSampleStandingsData(leagueId: number) {
   console.log(`✅ Sample data seeded successfully for league ${leagueId}`);
 }
 
+// Proxy endpoint for standings with query parameters
+standingsRouter.get('/', asyncHandler(async (req, res) => {
+  const { league, season } = req.query;
+  if (!league || !season) {
+    return res.status(400).json({ error: 'league and season query parameters are required' });
+  }
+  const data = await fetchFromAPIFootball(`standings?league=${league}&season=${season}`);
+  res.json(data);
+}));
+
 // Get league standings with strict rate limiting
 standingsRouter.get("/:leagueId", strictRateLimit, asyncHandler(async (req, res) => {
   const leagueId = parseInt(req.params.leagueId);

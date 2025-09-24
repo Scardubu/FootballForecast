@@ -48,7 +48,7 @@ export class MLServiceClient {
         ...data
       });
     } catch (error) {
-      console.error("ML service health check failed:", error);
+      if (process.env.NODE_ENV === 'development') console.error("ML service health check failed:", error);
       return {
         status: "unhealthy",
         service: "SabiScore ML API",
@@ -64,7 +64,7 @@ export class MLServiceClient {
    */
   async predict(request: MLPredictionRequest): Promise<MLPredictionResponse | null> {
     try {
-      console.log(`🧠 Requesting ML prediction for fixture ${request.fixture_id}: ${request.home_team_name} vs ${request.away_team_name}`);
+      if (process.env.NODE_ENV === 'development') console.log(`🧠 Requesting ML prediction for fixture ${request.fixture_id}: ${request.home_team_name} vs ${request.away_team_name}`);
       
       const response = await fetch(`${this.baseUrl}/predict`, {
         method: "POST",
@@ -82,10 +82,10 @@ export class MLServiceClient {
       const data = await response.json();
       const validatedResponse = mlPredictionResponseSchema.parse(data);
       
-      console.log(`✅ ML prediction successful: ${validatedResponse.predicted_outcome} (confidence: ${Math.round(validatedResponse.confidence * 100)}%)`);
+      if (process.env.NODE_ENV === 'development') console.log(`✅ ML prediction successful: ${validatedResponse.predicted_outcome} (confidence: ${Math.round(validatedResponse.confidence * 100)}%)`);
       return validatedResponse;
     } catch (error) {
-      console.error("ML prediction failed:", error);
+      if (process.env.NODE_ENV === 'development') console.error("ML prediction failed:", error);
       return null;
     }
   }
@@ -95,7 +95,7 @@ export class MLServiceClient {
    */
   async predictBatch(request: MLBatchPredictionRequest): Promise<MLPredictionResponse[]> {
     try {
-      console.log(`🧠 Requesting ML batch predictions for ${request.requests.length} matches`);
+      if (process.env.NODE_ENV === 'development') console.log(`🧠 Requesting ML batch predictions for ${request.requests.length} matches`);
       
       const response = await fetch(`${this.baseUrl}/predictions/batch`, {
         method: "POST",
@@ -116,10 +116,10 @@ export class MLServiceClient {
       const predictionsArray = Array.isArray(data) ? data : data.predictions || [];
       const validatedResponses = predictionsArray.map((pred: any) => mlPredictionResponseSchema.parse(pred));
       
-      console.log(`✅ ML batch predictions successful: ${validatedResponses.length} predictions generated`);
+      if (process.env.NODE_ENV === 'development') console.log(`✅ ML batch predictions successful: ${validatedResponses.length} predictions generated`);
       return validatedResponses;
     } catch (error) {
-      console.error("ML batch prediction failed:", error);
+      if (process.env.NODE_ENV === 'development') console.error("ML batch prediction failed:", error);
       return [];
     }
   }
@@ -129,7 +129,7 @@ export class MLServiceClient {
    */
   async trainModel(request: MLTrainingRequest): Promise<boolean> {
     try {
-      console.log(`🏋️ Requesting ML model training: ${request.start_date} to ${request.end_date}`);
+      if (process.env.NODE_ENV === 'development') console.log(`🏋️ Requesting ML model training: ${request.start_date} to ${request.end_date}`);
       
       const response = await fetch(`${this.baseUrl}/train`, {
         method: "POST",
@@ -144,10 +144,10 @@ export class MLServiceClient {
         throw new Error(`Training failed: ${response.status} ${response.statusText}`);
       }
 
-      console.log(`✅ ML model training initiated successfully`);
+      if (process.env.NODE_ENV === 'development') console.log(`✅ ML model training initiated successfully`);
       return true;
     } catch (error) {
-      console.error("ML model training failed:", error);
+      if (process.env.NODE_ENV === 'development') console.error("ML model training failed:", error);
       return false;
     }
   }
@@ -172,7 +172,7 @@ export class MLServiceClient {
       const data = await response.json();
       return mlModelStatusResponseSchema.parse(data);
     } catch (error) {
-      console.error("ML model status check failed:", error);
+      if (process.env.NODE_ENV === 'development') console.error("ML model status check failed:", error);
       return null;
     }
   }
@@ -181,7 +181,7 @@ export class MLServiceClient {
    * Generate fallback prediction when ML service is unavailable
    */
   generateFallbackPrediction(request: MLPredictionRequest): MLPredictionResponse {
-    console.log(`🔄 Generating fallback prediction for fixture ${request.fixture_id}`);
+    if (process.env.NODE_ENV === 'development') console.log(`🔄 Generating fallback prediction for fixture ${request.fixture_id}`);
     
     return {
       fixture_id: request.fixture_id,

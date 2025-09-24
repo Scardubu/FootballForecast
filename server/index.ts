@@ -1,74 +1,48 @@
-// Load environment variables from .env file
-import dotenv from 'dotenv';
-dotenv.config();
+import { server as serverConfig } from './config';
+import express from 'express';
+import { createServer } from 'http';
+import { WebSocketServer } from 'ws';
+import { setupVite, serveStatic } from './vite';
+import { apiRouter } from './routers/api';
+import { httpLogger, errorHandler, notFoundHandler } from './middleware';
 
-import express, { type Request, Response, NextFunction } from "express";
-import { registerRoutes } from "./routes";
-import { setupVite, serveStatic, log } from "./vite";
+async function bootstrap() {
+  const app = express();
+  const server = createServer(app);
+  const wss = new WebSocketServer({ server });
 
-const app = express();
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+  // Middleware
+  app.use(httpLogger);
+  app.use(express.json());
+  app.use(express.urlencoded({ extended: true }));
 
-app.use((req, res, next) => {
-  const start = Date.now();
-  const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
+  // API Routes
+  app.use('/api', apiRouter);
 
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
-
-  res.on("finish", () => {
-    const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
-
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
-      }
-
-      log(logLine);
-    }
-  });
-
-  next();
-});
-
-(async () => {
-  const server = await registerRoutes(app);
-
-  // Error handling is managed by centralized middleware in routes.ts
-
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
-  console.log("🔍 Environment check:", { appEnv: app.get("env"), nodeEnv: process.env.NODE_ENV });
-  if (app.get("env") === "development") {
-    console.log("🚀 Setting up Vite for development...");
-    await setupVite(app, server);
-    console.log("✅ Vite setup completed");
+  // Environment-specific setup
+  if (serverConfig.nodeEnv === 'development') {
+    await setupVite(app);
   } else {
-    console.log("📦 Setting up static file serving for production...");
     serveStatic(app);
-    // Note: API 404s are handled by routes.ts, static serving only handles non-API paths
   }
 
-  // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || '5000', 10);
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
-    log(`serving on port ${port}`);
+  // Error Handling
+  app.use(notFoundHandler);
+  app.use(errorHandler);
+
+  // WebSocket connections
+  wss.on('connection', (ws) => {
+    console.log('Client connected');
+    ws.on('close', () => console.log('Client disconnected'));
   });
-})();
+
+  // Start server
+  server.listen(serverConfig.port, '0.0.0.0', () => {
+    console.log(`🚀 Server listening on http://0.0.0.0:${serverConfig.port}`);
+  });
+}
+
+bootstrap().catch((err) => {
+  console.error('🔴 Failed to bootstrap server:', err);
+  process.exit(1);
+});

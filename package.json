@@ -8,6 +8,7 @@
     "npm": ">=8.19.0"
   },
   "scripts": {
+    "deploy:netlify": "powershell -ExecutionPolicy Bypass -File ./scripts/deploy-netlify.ps1",
     "dev": "cross-env NODE_ENV=development tsx server/index.ts",
     "dev:node": "cross-env NODE_ENV=development tsx server/index.ts",
     "dev:python": "cd src && python -m uvicorn api.ml_endpoints:app --host 0.0.0.0 --port 8000 --reload",

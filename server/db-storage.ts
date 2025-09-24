@@ -218,30 +218,27 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updatePrediction(prediction: Prediction): Promise<Prediction> {
-    try {
-      // Check if prediction already exists
-      const existing = await db.select().from(predictions)
-        .where(eq(predictions.fixtureId, prediction.fixtureId!))
-        .limit(1);
+    // Since fixtureId is not guaranteed to be unique, we use the prediction ID as the conflict target.
+    // A robust implementation would have a unique constraint on fixtureId.
+    const inserted = await db.insert(predictions)
+      .values(prediction)
+      .onConflictDoUpdate({
+        target: predictions.id,
+        set: {
+          homeWinProbability: prediction.homeWinProbability,
+          drawProbability: prediction.drawProbability,
+          awayWinProbability: prediction.awayWinProbability,
+          expectedGoalsHome: prediction.expectedGoalsHome,
+          expectedGoalsAway: prediction.expectedGoalsAway,
+          bothTeamsScore: prediction.bothTeamsScore,
+          over25Goals: prediction.over25Goals,
+          confidence: prediction.confidence,
+          createdAt: new Date(), // Update timestamp on modification
+        }
+      })
+      .returning();
       
-      if (existing.length > 0) {
-        // Update existing prediction
-        const updated = await db.update(predictions)
-          .set(prediction)
-          .where(eq(predictions.id, existing[0].id))
-          .returning();
-        return updated[0];
-      } else {
-        // Insert new prediction
-        const inserted = await db.insert(predictions).values(prediction).returning();
-        return inserted[0];
-      }
-    } catch (error) {
-      console.error('Error updating prediction:', error);
-      // Fallback: try just inserting
-      const inserted = await db.insert(predictions).values(prediction).returning();
-      return inserted[0];
-    }
+    return inserted[0];
   }
 
   async getStandings(leagueId: number): Promise<Standing[]> {
@@ -252,15 +249,26 @@ export class DatabaseStorage implements IStorage {
 
   async updateStandings(standingsArray: Standing[]): Promise<Standing[]> {
     if (standingsArray.length === 0) return [];
-    
-    // Delete existing standings for the league
-    const leagueId = standingsArray[0]?.leagueId;
-    if (leagueId) {
-      await db.delete(standings).where(eq(standings.leagueId, leagueId));
-    }
-    
-    // Insert new standings
-    const inserted = await db.insert(standings).values(standingsArray).returning();
+
+    const inserted = await db.insert(standings)
+      .values(standingsArray)
+      .onConflictDoUpdate({
+        target: [standings.leagueId, standings.teamId],
+        set: {
+          position: sql`excluded.position`,
+          points: sql`excluded.points`,
+          played: sql`excluded.played`,
+          wins: sql`excluded.wins`,
+          draws: sql`excluded.draws`,
+          losses: sql`excluded.losses`,
+          goalsFor: sql`excluded.goals_for`,
+          goalsAgainst: sql`excluded.goals_against`,
+          goalDifference: sql`excluded.goal_difference`,
+          form: sql`excluded.form`,
+        }
+      })
+      .returning();
+      
     return inserted;
   }
 
@@ -276,18 +284,24 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateTeamStats(stats: TeamStats): Promise<TeamStats> {
-    const existing = await this.getTeamStats(stats.teamId ?? -1, stats.leagueId ?? undefined);
-    
-    if (existing) {
-      const updated = await db.update(teamStats)
-        .set(stats)
-        .where(eq(teamStats.id, existing.id))
-        .returning();
-      return updated[0];
-    } else {
-      const inserted = await db.insert(teamStats).values(stats).returning();
-      return inserted[0];
-    }
+    const inserted = await db.insert(teamStats)
+      .values(stats)
+      .onConflictDoUpdate({
+        target: [teamStats.teamId, teamStats.leagueId],
+        set: {
+          attackRating: stats.attackRating,
+          defenseRating: stats.defenseRating,
+          overallRating: stats.overallRating,
+          averageGoalsScored: stats.averageGoalsScored,
+          averageGoalsConceded: stats.averageGoalsConceded,
+          cleanSheets: stats.cleanSheets,
+          form: stats.form,
+          lastUpdated: new Date(),
+        }
+      })
+      .returning();
+      
+    return inserted[0];
   }
   // Scraped data methods - secure and validated
   async createScrapedData(data: InsertScrapedData): Promise<ScrapedData> {

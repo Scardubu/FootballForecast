@@ -2,13 +2,20 @@
 
 This document provides step-by-step instructions for deploying Football Forecast to Netlify (frontend) and Supabase (database).
 
+**Recommended:** Use the automated CI/CD pipeline (GitHub Actions) for production deployments. Manual Netlify CLI steps are for advanced/manual use only.
+
 ## Security Warning
 
 **IMPORTANT: Never commit API keys, tokens, or other secrets to your repository.**
 
 All sensitive information should be set as environment variables in your deployment platform or passed securely during CI/CD processes.
 
-## Deployment Credentials
+## Security & Credentials
+
+- **Never commit `.env` or secrets to version control.**
+- Rotate all secrets (API keys, tokens) at least every 90 days.
+- Always use environment variables for configuration in all environments.
+
 
 ### Netlify Credentials
 
@@ -27,7 +34,23 @@ All sensitive information should be set as environment variables in your deploym
 - Supabase account
 - Netlify CLI (install with `npm install -g netlify-cli`)
 
-## 1. Supabase Setup
+## 1. CI/CD Deployment (Recommended)
+
+Production deployments are automated via GitHub Actions. On every push to `main`:
+- All tests and type checks are run.
+- The app is built.
+- **Database migrations are run before deployment.**
+- If migrations succeed, the app is deployed to Netlify.
+
+You can trigger this pipeline by pushing to `main`:
+
+```bash
+git push origin main
+```
+
+For details, see `.github/workflows/deploy.yml` and the main README.
+
+## 2. Manual Supabase Setup (Advanced/Manual)
 
 ### Database Configuration
 
@@ -89,25 +112,32 @@ node supabase-migrate.js
    ```bash
    node netlify-setup.js
    ```
-
 3. Alternatively, set these variables manually in the Netlify UI:
    - Go to Site settings > Build & deploy > Environment
    - Add the following environment variables:
 
      ```env
-     DATABASE_URL=postgresql://postgres:postgres@db.mokwkueoqemmcfxownxt.supabase.co:5432/postgres
-     API_FOOTBALL_KEY=nfp_K5vxAHjYMvsA2EtKRkxuYR6etLxmzvoad9fe
-     API_BEARER_TOKEN=JWeUkU6C-Pl-R6ls9DyJTgyZ4vybBYSBBskboe3Vz4s
-     SCRAPER_AUTH_TOKEN=WyrIUJKZ1vfi7aSh7JAgoC8eCV-y3TJqHwY6LgG2luM
-     SUPABASE_URL=https://mokwkueoqemmcfxownxt.supabase.co
-     NODE_VERSION=18.18.0
-     ```
+    # Database
+    DATABASE_URL=postgresql://postgres:postgres@db.mokwkueoqemmcfxownxt.supabase.co:5432/postgres
+
+    # External APIs
+    API_FOOTBALL_KEY=your_api_football_key
+
+    # ML Service Integration
+    ML_SERVICE_URL=https://your-deployed-ml-service.example.com
+
+    # Session and Security
+    SESSION_SECRET=your_production_secret
+    SESSION_SECURE=true
+
+    # Node/Build
+    NODE_VERSION=18.18.0
+    ```
 
 ### Deploy to Netlify
 
 ```bash
 # Make sure the build works locally first
-npm run build
 
 # Deploy to Netlify
 netlify deploy --prod

@@ -15,7 +15,12 @@ export const generalRateLimit = rateLimit({
   standardHeaders: true, // Include rate limit info in headers
   legacyHeaders: false, // Disable X-RateLimit-* headers
   skip: (req: Request) => {
-    return req.path === '/api/health' || req.path === '/health';
+    const p = req.path || '';
+    // Skip health checks in both direct server and Netlify function contexts
+    return p === '/api/health' ||
+           p === '/health' ||
+           p === '/.netlify/functions/api/health' ||
+           p.endsWith('/health');
   },
   handler: (req: Request, res: Response) => {
     const clientIP = req.ip || req.socket.remoteAddress || 'unknown';

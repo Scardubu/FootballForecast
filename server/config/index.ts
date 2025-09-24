@@ -118,8 +118,11 @@ function loadConfig(): AppConfig {
   const isProduction = nodeEnv === 'production';
   
   try {
-    // Database configuration
-    const databaseUrl = getRequiredEnv('DATABASE_URL', 'PostgreSQL connection string');
+    // Database configuration (optional to enable memory storage fallback)
+    const databaseUrl = process.env.DATABASE_URL?.trim() || '';
+    if (!databaseUrl) {
+      console.warn('⚠️ DATABASE_URL not set. Falling back to in-memory storage.');
+    }
     
     // API configuration with multiple fallback env var names
     const apiKeyValue = process.env.API_FOOTBALL_KEY || process.env.RAPIDAPI_KEY;
@@ -177,7 +180,7 @@ function loadConfig(): AppConfig {
       if (nodeEnv === 'development') {
         console.error('\n📋 Setup Guide:');
         console.error('1. Set required environment variables in .env file or Replit Secrets:');
-        console.error('   - DATABASE_URL (provided by Replit PostgreSQL)');
+        console.error('   - DATABASE_URL (optional: in-memory fallback will be used if missing)');
         console.error('   - API_FOOTBALL_KEY (from RapidAPI API-Football subscription)');
         console.error('   - API_BEARER_TOKEN (generate secure random token)');
         console.error('   - SCRAPER_AUTH_TOKEN (generate secure random token)');
@@ -185,7 +188,9 @@ function loadConfig(): AppConfig {
         console.error('3. Generate secure tokens: openssl rand -hex 32\n');
       }
       
-      process.exit(1);
+      // Do not exit on configuration error to allow degraded operation in serverless contexts
+      // Re-throw to let callers decide, but avoid hard exit here
+      throw error;
     }
     throw error;
   }

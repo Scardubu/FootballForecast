@@ -18,37 +18,23 @@
                     └─────────────────────┘
                                │
             ┌─────────────────────────────────────────┐
-            │            ML Pipeline                   │
             ├─────────────────────────────────────────┤
             │  ┌──────────┐ ┌─────────────┐ ┌─────────┐│
-            │  │ Scrapers │ │ Feature Eng.│ │ Models  ││
-            │  │ (Multi-  │ │ (xG, Form,  │ │ (XGBoost││
-            │  │ Source)  │ │ Injuries)   │ │ Calibr.)││
+            │  │ React Frontend  │ │ Express API     │ │ PostgreSQL DB    │
+            │  │ (Vite, TS, Query) | │ (Netlify Fn/Node) | │  (Supabase/Cloud)  |
             │  └──────────┘ └─────────────┘ └─────────┘│
-            └─────────────────────────────────────────┘
-                               │
-                    ┌─────────────────────┐
-                    │   Storage Layer     │
-                    ├─────────────────────┤
-                    │ ┌─────────┐ ┌──────┐│
-                    │ │ SQLite  │ │Cache │││
-                    │ │ (Main)  │ │(Redis││
-                    │ └─────────┘ │-like)│││
-                    │             └──────┘││
-                    └─────────────────────┘│
-                               │
-            ┌─────────────────────────────────────────┐
-            │        Data Sources (Scraped)           │
-            ├─────────────────────────────────────────┤
-            │ FBref │ WhoScored │ SofaScore │ Understat│
-            │  xG   │ Ratings   │  Live     │   xG    │
-            └─────────────────────────────────────────┘
-```
-
-## Current System Analysis
-
-### Existing Infrastructure:
-- **Frontend**: React/TypeScript with shadcn/ui components
+            │                           |  |  ^
+            │                           v  |  |
+            │  +-------------------+                |  |  |
+            │  |   Python ML API   | <--------------+  |  |
+            │  |   (FastAPI/XGBoost|                   |  |
+            │  +-------------------+                   |  |
+            │                           ^                               |  |
+            │                           |                               |  |
+            │  +-------------------+                    |  |
+            │  |  Data Seeder &    |--------------------+  |
+            │  |  Scheduler        |  (auto-fetch/refresh)  |
+            │  +-------------------+                       |
 - **Backend**: Express.js with in-memory storage
 - **Real-time**: 15-second polling of API-Football
 - **Data Models**: 7 core entities (teams, fixtures, predictions, etc.)

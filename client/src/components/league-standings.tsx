@@ -11,21 +11,35 @@ export function LeagueStandings() {
   const [selectedLeague] = useState(39); // Premier League
   const { auth, isLoading: authLoading } = useAuth();
 
-  const { data: standings, isLoading } = useQuery({
+  const { data: standings, isLoading, error: standingsError } = useQuery({
     queryKey: ["/api/standings", selectedLeague],
     select: (data: Standing[]) => data.slice(0, 5), // Show top 5
-    enabled: !authLoading && !!auth?.authenticated,
+    enabled: !authLoading,
   });
 
-  const { data: teams } = useQuery({
+  const { data: teams, error: teamsError } = useQuery({
     queryKey: ["/api/teams"],
-    enabled: !authLoading && !!auth?.authenticated,
+    enabled: !authLoading,
   });
 
   const getTeam = (teamId: number): Team | undefined => {
     return Array.isArray(teams) ? teams.find((team: Team) => team.id === teamId) : undefined;
   };
 
+  const error = standingsError || teamsError;
+  if (error) {
+    return (
+      <Card data-testid="league-standings-error">
+        <CardContent className="p-6">
+          <div className="p-8 bg-destructive/10 rounded text-destructive text-center">
+            <i className="fas fa-exclamation-triangle text-3xl mb-2"></i>
+            <div className="font-semibold">Unable to load league standings</div>
+            <div className="text-sm text-muted-foreground">{error instanceof Error ? error.message : 'Network error. Please try again later.'}</div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
   if (authLoading || isLoading) {
     return (
       <Card>

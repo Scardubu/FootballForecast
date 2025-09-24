@@ -20,6 +20,11 @@ Use this checklist to verify that the Football Forecast application has been suc
 - [ ] **Fixtures endpoint**: `/api/fixtures` returns fixture data
 - [ ] **Predictions endpoint**: `/api/predictions` returns prediction data
 
+Notes:
+- If redirects are misconfigured, test functions directly:
+  - `/.netlify/functions/api/health`
+  - `/.netlify/functions/api/leagues`
+
 ## Database (Supabase)
 
 - [ ] **Connection works**: Application can connect to the database
@@ -62,7 +67,20 @@ Use this checklist to verify that the Football Forecast application has been suc
    node test-api.js
    ```
 
-3. **Database verification**:
+3. **Local Netlify dev (optional)**:
+   ```bash
+   # Terminal A: Vite dev server
+   npm run dev:netlify  # http://localhost:5173
+
+   # Terminal B: Netlify proxy (SPA + Functions)
+   npx netlify dev      # http://localhost:8888
+
+   # Test
+   curl -i http://localhost:8888/api/health
+   curl -i http://localhost:8888/.netlify/functions/api/health
+   ```
+
+4. **Database verification**:
    ```bash
    # Connect to Supabase and verify schema
    node verify-database.js

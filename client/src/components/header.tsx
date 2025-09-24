@@ -1,8 +1,10 @@
 import { useState } from "react";
+import { Link, useLocation } from "wouter";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export function Header() {
   const [selectedLeague, setSelectedLeague] = useState("39"); // Premier League
+  const [location] = useLocation();
 
   const leagues = [
     { id: "39", name: "Premier League", country: "England" },
@@ -29,21 +31,31 @@ export function Header() {
             </div>
             
             <nav className="hidden md:flex space-x-6">
-              <a href="#" className="text-foreground hover:text-primary font-medium transition-colors" data-testid="nav-dashboard">
-                Dashboard
-              </a>
-              <a href="#" className="text-muted-foreground hover:text-primary font-medium transition-colors" data-testid="nav-predictions">
-                Predictions
-              </a>
-              <a href="#" className="text-muted-foreground hover:text-primary font-medium transition-colors" data-testid="nav-teams">
-                Teams
-              </a>
-              <a href="#" className="text-muted-foreground hover:text-primary font-medium transition-colors" data-testid="nav-leagues">
-                Leagues
-              </a>
-              <a href="#" className="text-muted-foreground hover:text-primary font-medium transition-colors" data-testid="nav-statistics">
-                Statistics
-              </a>
+              <Link href="/">
+                <a className={`${location === "/" || location === "/dashboard" ? "text-foreground" : "text-muted-foreground"} hover:text-primary font-medium transition-colors`} data-testid="nav-dashboard">
+                  Dashboard
+                </a>
+              </Link>
+              <Link href="/dashboard#predictions">
+                <a className={`${location?.includes("dashboard") ? "text-muted-foreground" : "text-muted-foreground"} hover:text-primary font-medium transition-colors`} data-testid="nav-predictions">
+                  Predictions
+                </a>
+              </Link>
+              <Link href="/dashboard#teams">
+                <a className="text-muted-foreground hover:text-primary font-medium transition-colors" data-testid="nav-teams">
+                  Teams
+                </a>
+              </Link>
+              <Link href="/dashboard#leagues">
+                <a className="text-muted-foreground hover:text-primary font-medium transition-colors" data-testid="nav-leagues">
+                  Leagues
+                </a>
+              </Link>
+              <Link href="/dashboard#analytics">
+                <a className="text-muted-foreground hover:text-primary font-medium transition-colors" data-testid="nav-statistics">
+                  Statistics
+                </a>
+              </Link>
             </nav>
           </div>
           

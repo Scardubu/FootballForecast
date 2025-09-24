@@ -9,9 +9,30 @@ import os from "os";
 export const healthRouter = Router();
 
 // Health and monitoring endpoints (no auth required)
+import { mlClient } from '../lib/ml-client';
+
 healthRouter.get('/health', asyncHandler(async (req, res) => {
-  res.json({ 
-    status: 'healthy', 
+  // Check DB connection
+  let dbStatus: 'healthy' | 'unhealthy' = 'healthy';
+  try {
+    await req.app.get('storage').getLeagues();
+  } catch (err) {
+    dbStatus = 'unhealthy';
+  }
+
+  // Check ML service
+  let mlStatus: 'healthy' | 'unhealthy' = 'healthy';
+  try {
+    const mlHealth = await mlClient.healthCheck();
+    mlStatus = mlHealth.status === 'healthy' ? 'healthy' : 'unhealthy';
+  } catch (err) {
+    mlStatus = 'unhealthy';
+  }
+
+  res.json({
+    status: dbStatus === 'healthy' && mlStatus === 'healthy' ? 'healthy' : 'degraded',
+    db: dbStatus,
+    ml: mlStatus,
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     version: process.env.npm_package_version || '1.0.0',

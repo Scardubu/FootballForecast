@@ -4,8 +4,23 @@ import { storage } from "../storage";
 
 export const leaguesRouter = Router();
 
-// Get leagues
+import { apiFootballClient } from "../services/apiFootballClient";
+
+// Get leagues, with optional filtering by country and season
 leaguesRouter.get("/", asyncHandler(async (req, res) => {
+  const { country, season } = req.query;
+
+  // If filters are provided, proxy to API Football
+  if (country || season) {
+    const params = new URLSearchParams();
+    if (country) params.append('country', country as string);
+    if (season) params.append('season', season as string);
+    const endpoint = `leagues?${params.toString()}`;
+    const data = await apiFootballClient.request(endpoint);
+    return res.json(data);
+  }
+
+  // Otherwise, fetch from local storage
   const leagues = await storage.getLeagues();
   res.json(leagues);
 }));

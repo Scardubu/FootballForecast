@@ -26,6 +26,12 @@ async function checkApi(path, tokenRequired = false) {
     const res = await axios.get(`${API_BASE}${path}`, { headers });
     return res.status === 200;
   } catch (e) {
+    if (e.response) {
+      console.error(`FAIL ${path}: ${e.response.status} ${e.response.statusText}`);
+      if (e.response.data) console.error(e.response.data);
+    } else {
+      console.error(`FAIL ${path}:`, e.message);
+    }
     return false;
   }
 }
@@ -51,13 +57,19 @@ async function main() {
   console.log(await checkApi('/health') ? 'OK' : 'FAIL');
 
   process.stdout.write('/api/leagues... ');
-  console.log(await checkApi('/leagues', true) ? 'OK' : 'FAIL');
+  console.log(await checkApi('/leagues') ? 'OK' : 'FAIL');
 
   process.stdout.write('/api/fixtures... ');
-  console.log(await checkApi('/fixtures', true) ? 'OK' : 'FAIL');
+  console.log(await checkApi('/fixtures') ? 'OK' : 'FAIL');
 
   process.stdout.write('/api/predictions... ');
-  console.log(await checkApi('/predictions', true) ? 'OK' : 'FAIL');
+  console.log(await checkApi('/predictions') ? 'OK' : 'FAIL');
+
+  // Diagnostics endpoints
+  process.stdout.write('/api/diagnostics/version... ');
+  console.log(await checkApi('/diagnostics/version') ? 'OK' : 'FAIL');
+  process.stdout.write('/api/diagnostics/status... ');
+  console.log(await checkApi('/diagnostics/status') ? 'OK' : 'FAIL');
 
   // ML service
   process.stdout.write('ML service health... ');

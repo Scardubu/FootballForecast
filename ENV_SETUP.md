@@ -4,7 +4,7 @@ This document provides detailed instructions for setting up the environment vari
 
 ## Required Environment Variables
 
-The following environment variables are required for the application to function properly:
+The following environment variables are required for the application to function properly. You should always start by copying `.env.example` to `.env` and editing it for your environment. Never commit `.env` to version control.
 
 ### Database Configuration
 
@@ -19,13 +19,13 @@ The following environment variables are required for the application to function
   - Get your API key from: [API-Football](https://www.api-football.com/)
   - Example: `nfp_K5vxAHjYMvsA2EtKRkxuYR6etLxmzvoad9fe`
 
-### Authentication Tokens
+### Authentication Tokens (Required for all environments)
 
-- `API_BEARER_TOKEN`: Secure random token for API authentication
+- `API_BEARER_TOKEN`: Secure random token for API authentication (required for both local and production)
   - Generate with: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
   - Example: `JWeUkU6C-Pl-R6ls9DyJTgyZ4vybBYSBBskboe3Vz4s`
 
-- `SCRAPER_AUTH_TOKEN`: Secure random token for scraper authentication
+- `SCRAPER_AUTH_TOKEN`: Secure random token for scraper authentication (required for both local and production)
   - Generate with: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
   - Example: `WyrIUJKZ1vfi7aSh7JAgoC8eCV-y3TJqHwY6LgG2luM`
 
@@ -104,7 +104,7 @@ For other environment-related issues, check the application logs for specific er
 
 ## Security Best Practices
 
-1. Never commit your `.env` file to version control
-2. Rotate your authentication tokens regularly
+1. Never commit your `.env` file to version control (use `.env.example` as a template for sharing config)
+2. Rotate your authentication tokens regularly (at least every 90 days)
 3. Use different tokens for development and production environments
 4. Ensure your database connection uses SSL in production

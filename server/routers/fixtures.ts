@@ -120,16 +120,27 @@ async function updateLiveFixtures() {
   }
 }
 
-// Get live fixtures
+// Get live fixtures - Directly proxying to API Football client
 fixturesRouter.get("/live", asyncHandler(async (req, res) => {
-  await updateLiveFixtures();
-  const fixtures = await storage.getLiveFixtures();
-  res.json(fixtures);
+  const data = await fetchFromAPIFootball('fixtures?live=all');
+  res.json(data);
 }));
 
-// Get fixtures for a league
+// Get fixtures with optional filters by league and date
 fixturesRouter.get("/", asyncHandler(async (req, res) => {
-  const leagueId = req.query.league ? parseInt(req.query.league as string) : undefined;
-  const fixtures = await storage.getFixtures(leagueId);
-  res.json(fixtures);
+  const { league, date } = req.query;
+  
+  // If no filters, get from storage as a fallback
+  if (!league && !date) {
+    const fixtures = await storage.getFixtures();
+    return res.json(fixtures);
+  }
+
+  const params = new URLSearchParams();
+  if (league) params.append('league', league as string);
+  if (date) params.append('date', date as string);
+
+  const endpoint = `fixtures?${params.toString()}`;
+  const data = await fetchFromAPIFootball(endpoint);
+  res.json(data);
 }));
