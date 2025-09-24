@@ -1,17 +1,15 @@
-import { useQuery } from "@tanstack/react-query";
+import React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/lib/auth-context";
 import { TeamDisplay } from "@/components/team-display";
 import { useWebSocket } from "@/hooks/use-websocket";
-import { ErrorBoundary } from "@/components/error-boundary";
+import { ErrorBoundary, ErrorFallback } from "@/components/error-boundary";
 import { MatchCardSkeleton, SkeletonGrid } from "@/components/loading";
 import { Grid } from "@/components/layout/grid";
+import { useApi } from "@/hooks/use-api";
 import type { Fixture, Team } from "@shared/schema";
 
 export function LiveMatches() {
-  const { auth, isLoading: authLoading } = useAuth();
-  
   // Use WebSocket for real-time updates with HTTP fallback
   const { isConnected: wsConnected, isConnecting: wsConnecting, connectionStats } = useWebSocket({
     onMessage: (message) => {
@@ -21,17 +19,16 @@ export function LiveMatches() {
     }
   });
   
-  const { data: liveFixtures, isLoading, error } = useQuery<Fixture[]>({
-    queryKey: ["/api/fixtures/live"],
-    // Use WebSocket when connected and stable, fallback to polling otherwise
-    refetchInterval: wsConnected && !wsConnecting ? false : 15000,
-    enabled: !authLoading, // allow public read-only access
-  });
-
-  const { data: teams } = useQuery<Team[]>({
-    queryKey: ["/api/teams"],
-    enabled: !authLoading, // allow public read-only access
-  });
+  const { data: liveFixtures, loading: isLoading, error, refetch } = useApi<Fixture[]>('/api/fixtures/live', { retry: true });
+  const { data: teams } = useApi<Team[]>('/api/teams', { retry: true });
+  
+  // Auto-refresh every 15 seconds if not connected via WebSocket
+  React.useEffect(() => {
+    if (!wsConnected) {
+      const interval = setInterval(refetch, 15000);
+      return () => clearInterval(interval);
+    }
+  }, [wsConnected, refetch]);
 
   const getTeam = (teamId: number): Team | undefined => {
     return teams?.find((team: Team) => team.id === teamId);
@@ -52,7 +49,7 @@ export function LiveMatches() {
     }
   };
 
-  if (authLoading || isLoading) {
+  if (isLoading) {
     return (
       <div className="animate-fade-in">
         <SkeletonGrid count={3} component={MatchCardSkeleton} />
@@ -61,15 +58,7 @@ export function LiveMatches() {
   }
 
   if (error) {
-    return (
-      <div className="animate-fade-in">
-        <div className="p-8 bg-destructive/10 rounded text-destructive text-center">
-          <i className="fas fa-exclamation-triangle text-3xl mb-2"></i>
-          <div className="font-semibold">Unable to load live matches</div>
-          <div className="text-sm text-muted-foreground">{error instanceof Error ? error.message : 'Network error. Please try again later.'}</div>
-        </div>
-      </div>
-    );
+    return <ErrorFallback error={new Error(error)} resetError={refetch} />;
   }
 
   return (

@@ -1,26 +1,17 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TeamDisplay } from "@/components/team-display";
-import { useAuth } from "@/lib/auth-context";
+import { useLeagueStore } from "@/hooks/use-league-store";
+import { useApi } from "@/hooks/use-api";
+import { ErrorFallback } from "@/components/error-boundary";
 import type { Standing, Team } from "@shared/schema";
 
 export function LeagueStandings() {
-  const [selectedLeague] = useState(39); // Premier League
-  const { auth, isLoading: authLoading } = useAuth();
-
-  const { data: standings, isLoading, error: standingsError } = useQuery({
-    queryKey: ["/api/standings", selectedLeague],
-    select: (data: Standing[]) => data.slice(0, 5), // Show top 5
-    enabled: !authLoading,
-  });
-
-  const { data: teams, error: teamsError } = useQuery({
-    queryKey: ["/api/teams"],
-    enabled: !authLoading,
-  });
+  const { selectedLeague } = useLeagueStore();
+  
+  const { data: standings, loading: isLoadingStandings, error: standingsError } = useApi<Standing[]>(`/api/standings/${selectedLeague}`, { retry: true });
+  const { data: teams, error: teamsError } = useApi<Team[]>('/api/teams', { retry: true });
 
   const getTeam = (teamId: number): Team | undefined => {
     return Array.isArray(teams) ? teams.find((team: Team) => team.id === teamId) : undefined;
@@ -28,19 +19,10 @@ export function LeagueStandings() {
 
   const error = standingsError || teamsError;
   if (error) {
-    return (
-      <Card data-testid="league-standings-error">
-        <CardContent className="p-6">
-          <div className="p-8 bg-destructive/10 rounded text-destructive text-center">
-            <i className="fas fa-exclamation-triangle text-3xl mb-2"></i>
-            <div className="font-semibold">Unable to load league standings</div>
-            <div className="text-sm text-muted-foreground">{error instanceof Error ? error.message : 'Network error. Please try again later.'}</div>
-          </div>
-        </CardContent>
-      </Card>
-    );
+    return <ErrorFallback error={new Error(error)} resetError={() => window.location.reload()} />;
   }
-  if (authLoading || isLoading) {
+  
+  if (isLoadingStandings) {
     return (
       <Card>
         <CardContent className="p-6">
@@ -65,7 +47,7 @@ export function LeagueStandings() {
     <Card data-testid="league-standings">
       <CardContent className="p-6">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold text-foreground">Premier League</h3>
+          <h3 className="text-lg font-bold text-foreground">League Standings</h3>
           <Button 
             variant="ghost" 
             size="sm" 
@@ -77,7 +59,7 @@ export function LeagueStandings() {
         </div>
         
         <div className="space-y-3">
-          {standings?.map((standing: Standing) => {
+          {standings?.slice(0, 5).map((standing: Standing) => {
             const team = standing.teamId ? getTeam(standing.teamId) : undefined;
             
             return (
