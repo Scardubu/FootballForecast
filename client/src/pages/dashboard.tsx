@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useLeagueStore } from "@/hooks/use-league-store";
 import { useApi } from "@/hooks/use-api";
 import { AppLayout } from "@/components/layout/app-layout";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { LiveMatches } from "@/components/live-matches";
 import { PredictionsPanel } from "@/components/predictions-panel";
 import { LeagueStandings } from "@/components/league-standings";
@@ -114,22 +115,30 @@ export default function Dashboard() {
           {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-6">
             <Section title="Live Matches" description="Real-time match updates and scores">
-              <LiveMatches />
+              <ErrorBoundary>
+                <LiveMatches />
+              </ErrorBoundary>
             </Section>
 
             <Grid cols={{ base: 1, lg: 3 }} gap={8}>
               <div className="lg:col-span-2 space-y-6">
                 <Section title="AI Predictions" description="Model-driven forecasts with confidence">
-                  <PredictionsPanel />
+                  <ErrorBoundary>
+                    <PredictionsPanel />
+                  </ErrorBoundary>
                 </Section>
               </div>
 
               <div className="space-y-6">
                 <Section title="Standings" description="League table and team form">
-                  <LeagueStandings />
+                  <ErrorBoundary>
+                    <LeagueStandings />
+                  </ErrorBoundary>
                 </Section>
                 <Section title="Quick Stats" description="At-a-glance metrics">
-                  <QuickStats />
+                  <ErrorBoundary>
+                    <QuickStats />
+                  </ErrorBoundary>
                 </Section>
               </div>
             </Grid>
@@ -138,14 +147,18 @@ export default function Dashboard() {
           {/* AI Predictions Tab */}
           <TabsContent value="predictions" className="space-y-6">
             <Grid cols={{ base: 1, lg: 2 }} gap={8}>
-              <FixtureSelector 
-                onFixtureSelect={(fixture) => setSelectedFixture(fixture)}
-                selectedFixture={selectedFixture}
-              />
+              <ErrorBoundary>
+                <FixtureSelector 
+                  onFixtureSelect={(fixture) => setSelectedFixture(fixture)}
+                  selectedFixture={selectedFixture}
+                />
+              </ErrorBoundary>
               
               <div className="space-y-6">
                 {selectedFixture ? (
-                  <DetailedPredictionAnalysis fixtureId={selectedFixture.id} />
+                  <ErrorBoundary>
+                    <DetailedPredictionAnalysis fixtureId={selectedFixture.id} />
+                  </ErrorBoundary>
                 ) : (
                   <Card>
                     <CardContent className="p-8 text-center">
@@ -169,9 +182,11 @@ export default function Dashboard() {
 
           {/* Analytics Tab */}
           <TabsContent value="analytics" className="space-y-6">
-            <LazyWrapper fallback={<div className="h-96 bg-muted animate-pulse rounded" />}>
-              <LazyDataVisualization />
-            </LazyWrapper>
+            <ErrorBoundary>
+              <LazyWrapper fallback={<div className="h-96 bg-muted animate-pulse rounded" />}>
+                <LazyDataVisualization />
+              </LazyWrapper>
+            </ErrorBoundary>
             
             <Grid cols={{ base: 1, lg: 2 }} gap={8}>
               <Card>
@@ -236,9 +251,11 @@ export default function Dashboard() {
 
           {/* Insights Tab */}
           <TabsContent value="insights" className="space-y-6">
-            <LazyWrapper fallback={<div className="h-96 bg-muted animate-pulse rounded" />}>
-              <LazyScrapedInsights />
-            </LazyWrapper>
+            <ErrorBoundary>
+              <LazyWrapper fallback={<div className="h-96 bg-muted animate-pulse rounded" />}>
+                <LazyScrapedInsights />
+              </LazyWrapper>
+            </ErrorBoundary>
           </TabsContent>
         </Tabs>
       </div>

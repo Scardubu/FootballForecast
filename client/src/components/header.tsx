@@ -2,11 +2,11 @@ import { useState, useEffect } from "react";
 import { useLeagueStore } from "@/hooks/use-league-store";
 import { Link, useLocation } from "wouter";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { MobileMenu } from "./mobile-menu";
 
 export function Header() {
   const { selectedLeague, setSelectedLeague } = useLeagueStore();
   const [location] = useLocation();
-
   const [leagues, setLeagues] = useState([]);
 
   useEffect(() => {
@@ -29,6 +29,15 @@ export function Header() {
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center space-x-8">
             <div className="flex items-center space-x-3">
+              <div className="md:hidden">
+                <MobileMenu links={[
+                  { href: "/", label: "Dashboard", testId: "mobile-nav-dashboard" },
+                  { href: "/dashboard#predictions", label: "Predictions", testId: "mobile-nav-predictions" },
+                  { href: "/dashboard#teams", label: "Teams", testId: "mobile-nav-teams" },
+                  { href: "/dashboard#leagues", label: "Leagues", testId: "mobile-nav-leagues" },
+                  { href: "/dashboard#analytics", label: "Statistics", testId: "mobile-nav-statistics" },
+                ]} />
+              </div>
               <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
                 <i className="fas fa-futbol text-primary-foreground text-lg"></i>
               </div>
@@ -70,7 +79,7 @@ export function Header() {
           <div className="flex items-center space-x-4">
             {/* League Selector */}
             <Select value={selectedLeague} onValueChange={setSelectedLeague} data-testid="league-selector">
-              <SelectTrigger className="w-48 bg-muted border border-border">
+              <SelectTrigger className="w-[140px] md:w-48 bg-muted border border-border">
                 <SelectValue placeholder="Select League" />
               </SelectTrigger>
               <SelectContent>

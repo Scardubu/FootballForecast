@@ -1,52 +1,50 @@
-import { useQuery } from "@tanstack/react-query";
+import React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { useAuth } from "@/lib/auth-context";
-import { ErrorBoundary } from "@/components/error-boundary";
+import { ErrorBoundary, ErrorFallback } from "@/components/error-boundary";
 import { PredictionCardSkeleton } from "@/components/loading";
 import { Grid } from "@/components/layout/grid";
+import { useApi } from "@/hooks/use-api";
+import { useLeagueStore } from "@/hooks/use-league-store";
 import type { Team } from "@shared/schema";
-import { apiClient, type APIFootballResponse } from "@/lib/api-client";
 import type { APIFixture, APITeamData } from "@/lib/api-football-types";
 import { PredictionCard } from "@/components/prediction-card";
 
+interface FixtureResponse {
+  response: APIFixture[];
+}
+
+interface TeamsResponse {
+  response: APITeamData[];
+}
+
 export function PredictionsPanel() {
-  const { auth, isLoading: authLoading } = useAuth();
+  const { selectedLeague } = useLeagueStore();
 
-  const { data: fixturesResponse, isLoading: fixturesLoading, error: fixturesError } = useQuery<APIFootballResponse<APIFixture[]>>({
-    queryKey: ["fixtures", { upcoming: true }],
-    queryFn: () => apiClient.getFixtures(),
-    enabled: !authLoading,
-  });
+  const { data: fixturesData, loading: fixturesLoading, error: fixturesError, refetch: refetchFixtures } = 
+    useApi<FixtureResponse>(`/api/football/fixtures?league=${selectedLeague}`, { retry: true });
+    
+  const { data: teamsData, error: teamsError } = 
+    useApi<TeamsResponse>("/api/football/teams", { retry: true });
 
-  const fixtures = fixturesResponse?.response
-    .filter(f => f.fixture.status.short === "NS" || f.fixture.status.short === "TBD")
-    .slice(0, 3);
+  // Extract the fixtures and filter for upcoming matches
+  const fixtures = fixturesData?.response
+    ?.filter(f => f.fixture.status.short === "NS" || f.fixture.status.short === "TBD")
+    ?.slice(0, 3);
 
-  const { data: teamsResponse, error: teamsError } = useQuery<APIFootballResponse<APITeamData[]>>({
-    queryKey: ["teams"],
-    queryFn: () => apiClient.getTeams(),
-    enabled: !authLoading,
-  });
-
-  const teams = teamsResponse?.response;
+  // Get team data helper function
   const getTeam = (teamId: number): APITeamData['team'] | undefined => {
-    return teams?.find((t) => t.team.id === teamId)?.team;
+    return teamsData?.response?.find((t) => t.team.id === teamId)?.team;
   };
 
+  // Error handling
   const error = fixturesError || teamsError;
   if (error) {
-    return (
-      <div className="animate-fade-in">
-        <div className="p-8 bg-destructive/10 rounded text-destructive text-center">
-          <i className="fas fa-exclamation-triangle text-3xl mb-2"></i>
-          <div className="font-semibold">Unable to load predictions</div>
-          <div className="text-sm text-muted-foreground">{error instanceof Error ? error.message : 'Network error. Please try again later.'}</div>
-        </div>
-      </div>
-    );
+    return <ErrorFallback error={new Error(error)} resetError={refetchFixtures} />;
   }
-  if (authLoading || fixturesLoading) {
+
+  // Loading state
+  if (fixturesLoading) {
     return (
       <div className="animate-fade-in">
         <Grid cols={{ base: 1 }} gap={6}>
