@@ -79,13 +79,13 @@ export function LiveMatches() {
           ) : (
             <>
               <i className="fas fa-clock text-warning"></i>
-              <span>Updates every 15 seconds</span>
+              <span>{window.location.hostname.includes('netlify.app') ? 'WebSockets not available in production' : 'Updates every 15 seconds'}</span>
             </>
           )}
         </div>
       
         <Grid cols={{ base: 1, md: 2, lg: 3 }} gap={6}>
-        {liveFixtures?.map((fixture: Fixture) => {
+        {Array.isArray(liveFixtures) && liveFixtures.map((fixture: Fixture) => {
           const homeTeam = fixture.homeTeamId ? getTeam(fixture.homeTeamId) : undefined;
           const awayTeam = fixture.awayTeamId ? getTeam(fixture.awayTeamId) : undefined;
           const status = getStatusDisplay(fixture.status, fixture.elapsed);

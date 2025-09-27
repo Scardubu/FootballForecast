@@ -120,13 +120,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const authStatus = await checkAuth();
         
         // If not authenticated in development mode, auto-login
-        if (!authStatus.authenticated && import.meta.env.DEV) {
+        // Check both import.meta.env.DEV and NODE_ENV to be extra safe
+        // Explicitly prevent this in production
+        const isDevelopment = import.meta.env.DEV === true && import.meta.env.PROD !== true;
+        if (!authStatus.authenticated && isDevelopment && window.location.hostname === 'localhost') {
           await login();
         }
       } catch (err) {
         console.error('Auth initialization failed:', err);
         // In development mode, try auto-login even if check failed
-        if (import.meta.env.DEV) {
+        // Check both import.meta.env.DEV and NODE_ENV to be extra safe
+        // Explicitly prevent this in production
+        const isDevelopment = import.meta.env.DEV === true && import.meta.env.PROD !== true;
+        if (isDevelopment && window.location.hostname === 'localhost') {
           try {
             await login();
           } catch (loginErr) {

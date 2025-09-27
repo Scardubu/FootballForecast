@@ -8,12 +8,16 @@
     "npm": ">=8.19.0"
   },
   "scripts": {
+    "deploy": "node deploy.js",
+    "deploy:manual": "node manual-deploy.js",
     "deploy:netlify": "powershell -ExecutionPolicy Bypass -File ./scripts/deploy-netlify.ps1",
-    "dev": "cross-env NODE_ENV=development tsx server/index.ts",
+    "netlify:create": "node create-netlify-site.js",
+    "check-env": "node check-env.js",
+    "dev": "npm run check-env && cross-env NODE_ENV=development tsx server/index.ts",
     "dev:node": "cross-env NODE_ENV=development tsx server/index.ts",
     "dev:python": "cd src && python -m uvicorn api.ml_endpoints:app --host 0.0.0.0 --port 8000 --reload",
     "dev:netlify": "vite --port 5173",
-    "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
+    "build": "rimraf dist && vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
     "start": "cross-env NODE_ENV=production node dist/index.js",
     "check": "tsc",
     "db:push": "drizzle-kit push",
@@ -24,6 +28,7 @@
     "format": "prettier --write .",
     "postinstall": "npm run check",
     "verify-deployment": "node verify-deployment.js",
+    "verify-production": "node verify-production.js",
     "deployment-status": "node deployment-status.js"
   },
   "dependencies": {
@@ -96,6 +101,7 @@
     "react-icons": "^5.4.0",
     "react-resizable-panels": "^2.1.7",
     "recharts": "^2.15.2",
+    "rimraf": "^6.0.1",
     "serverless-http": "^3.2.0",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",

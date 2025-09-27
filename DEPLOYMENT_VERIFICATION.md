@@ -1,10 +1,12 @@
 # Deployment Verification Checklist
 
+**Last updated:** September 25, 2025
+
 Use this checklist to verify that the Football Forecast application has been successfully deployed and is functioning correctly.
 
 ## Frontend Deployment (Netlify)
 
-- [ ] **Site is accessible**: Visit https://football-forecast.netlify.app
+- [ ] **Site is accessible**: Visit https://resilient-souffle-0daafe.netlify.app
 - [ ] **Assets load correctly**: Check that all images, styles, and scripts load without errors
 - [ ] **Responsive design**: Test on mobile, tablet, and desktop viewports
 - [ ] **Authentication works**: Test login functionality
@@ -24,6 +26,10 @@ Notes:
 - If redirects are misconfigured, test functions directly:
   - `/.netlify/functions/api/health`
   - `/.netlify/functions/api/leagues`
+
+- Degraded Mode: If API endpoints return empty arrays/objects or 404/503, check that environment variables are properly set in Netlify Site settings → Build & deploy → Environment
+
+- If the degraded mode banner appears, environment variables need to be configured
 
 ## Database (Supabase)
 
@@ -52,6 +58,13 @@ Notes:
 - [ ] **Authentication**: Bearer token validation works
 - [ ] **Rate limiting**: API rate limiting is in effect
 - [ ] **CORS**: CORS headers are properly configured
+- [ ] **Security Headers**: Verify presence of:
+  - Strict-Transport-Security
+  - X-Content-Type-Options
+  - X-Frame-Options
+  - Content-Security-Policy
+  - Referrer-Policy
+  - Permissions-Policy
 
 ## How to Run Verification Tests
 
@@ -92,3 +105,6 @@ Notes:
 - **API authentication errors**: Verify API_BEARER_TOKEN is set correctly
 - **Database connection issues**: Check DATABASE_URL and network connectivity
 - **CORS errors**: Ensure CORS_ORIGINS includes the frontend domain
+- **Dev login errors**: These are expected in production and can be ignored
+- **WebSocket errors**: WebSockets are not supported on Netlify unless using a managed provider, the app automatically uses polling instead
+- **Degraded mode banner**: Set required environment variables in Netlify

@@ -3,26 +3,34 @@ import { useLeagueStore } from "@/hooks/use-league-store";
 import { useApi } from "@/hooks/use-api";
 import { AppLayout } from "@/components/layout/app-layout";
 import { ErrorBoundary } from "@/components/error-boundary";
-import { LiveMatches } from "@/components/live-matches";
-import { PredictionsPanel } from "@/components/predictions-panel";
-import { LeagueStandings } from "@/components/league-standings";
-import { QuickStats } from "@/components/quick-stats";
 import { FixtureSelector } from "@/components/fixture-selector";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { LazyWrapper, LazyDataVisualization, LazyScrapedInsights, LazyTeamPerformance } from "@/components/lazy-wrapper";
-import { DetailedPredictionAnalysis } from "@/components/detailed-prediction-analysis";
+import { 
+  LazyWrapper, 
+  LazyDataVisualization, 
+  LazyScrapedInsights, 
+  LazyTeamPerformance, 
+  LazyDetailedPredictionAnalysis,
+  LazyLiveMatches,
+  LazyPredictionsPanel,
+  LazyLeagueStandings,
+  LazyQuickStats
+} from "@/components/lazy-wrapper";
 import { useScreenReaderAnnouncement } from "@/components/accessibility";
 import { Section } from "@/components/layout/section";
 import { Grid } from "@/components/layout/grid";
 import type { Fixture } from "@shared/schema";
+import { SetupRequiredCard } from "@/components/setup-required-card";
+
+import { DegradedModeBanner } from '@/components/degraded-mode-banner';
 
 export default function Dashboard() {
   const [selectedFixture, setSelectedFixture] = useState<Fixture | null>(null);
   const [activeTab, setActiveTab] = useState("overview");
   const { announce, AnnouncementRegion } = useScreenReaderAnnouncement();
-  const { selectedLeague } = useLeagueStore();
+  const { selectedLeague, selectedSeason } = useLeagueStore();
   
   // API calls with error handling
   const { data: stats, loading: isLoadingStats } = useApi<any>('/api/stats', { retry: true });
@@ -34,9 +42,12 @@ export default function Dashboard() {
 
   return (
     <AppLayout>
+      <DegradedModeBanner />
       <AnnouncementRegion />
 
       <div className="space-y-8">
+        {/* Setup guidance when running in degraded mode */}
+        <SetupRequiredCard />
         {/* Platform Stats */}
         <Section title="Platform Stats" description="Coverage, performance and update cadence">
           <Grid cols={{ base: 1, md: 4 }} gap={4}>
@@ -115,30 +126,30 @@ export default function Dashboard() {
           {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-6">
             <Section title="Live Matches" description="Real-time match updates and scores">
-              <ErrorBoundary>
-                <LiveMatches />
-              </ErrorBoundary>
+              <LazyWrapper>
+                <LazyLiveMatches />
+              </LazyWrapper>
             </Section>
 
             <Grid cols={{ base: 1, lg: 3 }} gap={8}>
               <div className="lg:col-span-2 space-y-6">
                 <Section title="AI Predictions" description="Model-driven forecasts with confidence">
-                  <ErrorBoundary>
-                    <PredictionsPanel />
-                  </ErrorBoundary>
+                  <LazyWrapper>
+                    <LazyPredictionsPanel />
+                  </LazyWrapper>
                 </Section>
               </div>
 
               <div className="space-y-6">
                 <Section title="Standings" description="League table and team form">
-                  <ErrorBoundary>
-                    <LeagueStandings />
-                  </ErrorBoundary>
+                  <LazyWrapper>
+                    <LazyLeagueStandings />
+                  </LazyWrapper>
                 </Section>
                 <Section title="Quick Stats" description="At-a-glance metrics">
-                  <ErrorBoundary>
-                    <QuickStats />
-                  </ErrorBoundary>
+                  <LazyWrapper>
+                    <LazyQuickStats />
+                  </LazyWrapper>
                 </Section>
               </div>
             </Grid>
@@ -156,9 +167,9 @@ export default function Dashboard() {
               
               <div className="space-y-6">
                 {selectedFixture ? (
-                  <ErrorBoundary>
-                    <DetailedPredictionAnalysis fixtureId={selectedFixture.id} />
-                  </ErrorBoundary>
+                  <LazyWrapper fallback={<div className="h-96 bg-muted animate-pulse rounded" />}>
+                    <LazyDetailedPredictionAnalysis fixtureId={selectedFixture.id} />
+                  </LazyWrapper>
                 ) : (
                   <Card>
                     <CardContent className="p-8 text-center">

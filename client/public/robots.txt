@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://resilient-souffle-0daafe.netlify.app/sitemap.xml

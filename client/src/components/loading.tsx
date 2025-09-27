@@ -227,10 +227,9 @@ export const SkeletonGrid = React.memo(function SkeletonGrid({
     >
       {[...Array(count)].map((_, i) => {
         const componentProps = {
-          key: i,
           'data-testid': `${dataTestId}-item-${i}`
-        };
-        return <Component {...componentProps} />;
+        } as const;
+        return <Component key={i} {...componentProps} />;
       })}
     </div>
   );

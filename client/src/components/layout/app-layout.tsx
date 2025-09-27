@@ -2,7 +2,7 @@ import React from "react";
 import { Header } from "@/components/header";
 import { SkipToMain } from "@/components/accessibility";
 
-interface AppLayoutProps {
+export interface AppLayoutProps {
   children: React.ReactNode;
 }
 

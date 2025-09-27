@@ -35,10 +35,7 @@ jobs:
           # Ensure any required build-time env vars are passed here
           VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
 
-      - name: Run database migrations
-        run: npm run db:push
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
 
       - name: Deploy to Netlify
         uses: netlify/actions/cli@v10 # Pin to a specific version
@@ -46,4 +43,4 @@ jobs:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
         with:
-          args: deploy --prod --dir=dist # Explicitly set the directory
+          args: deploy --prod --dir=dist/public --no-build # Use pre-built assets to prevent Netlify rebuild issues

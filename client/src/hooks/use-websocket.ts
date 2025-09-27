@@ -85,7 +85,9 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
     }
 
     // Production fallback for Netlify: WebSockets not supported if no managed provider configured
-    if (process.env.NODE_ENV === 'production' && window.location.hostname.endsWith('netlify.app')) {
+    if ((process.env.NODE_ENV === 'production' || import.meta.env.PROD === true) && 
+        window.location.hostname.endsWith('netlify.app')) {
+      console.log('WebSockets are not available on Netlify unless using a managed provider.');
       return null;
     }
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -235,7 +237,11 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
         onDisconnect?.();
 
         // Attempt to reconnect if enabled
-        if (reconnect && reconnectAttemptsRef.current < maxReconnectAttempts && !event.wasClean) {
+        // Don't attempt to reconnect in production on Netlify or if the WebSocket URL is null
+    const isNetlifyProduction = (process.env.NODE_ENV === 'production' || import.meta.env.PROD === true) && 
+                               window.location.hostname.endsWith('netlify.app');
+    
+    if (reconnect && reconnectAttemptsRef.current < maxReconnectAttempts && !event.wasClean && !isNetlifyProduction) {
           reconnectAttemptsRef.current++;
           setConnectionStats(prev => ({ 
             ...prev, 
@@ -325,11 +331,23 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
 
   // Connect once on mount, disconnect only on unmount
   useEffect(() => {
-    connect();
+    // Use the explicit environment variable to detect Netlify builds
+    const isNetlifyBuild = import.meta.env.VITE_NETLIFY_BUILD === 'true';
+
+    if (!isNetlifyBuild) {
+      connect();
+    } else {
+      console.log("Live updates via WebSockets are disabled in this environment.");
+      setError('Live updates are not available in this environment.');
+    }
+
     return () => {
-      disconnect();
+      if (!isNetlifyBuild) {
+        disconnect();
+      }
     };
-  }, []); // No dependencies - mount only
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // This effect should only run once on mount.
   
   // Reconnect when auth state changes to refresh handshake authentication
   useEffect(() => {

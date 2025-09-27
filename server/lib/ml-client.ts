@@ -16,10 +16,15 @@ import {
 export class MLServiceClient {
   private baseUrl: string;
   private timeout: number;
+  private fallbackEnabled: boolean;
 
   constructor() {
     this.baseUrl = process.env.ML_SERVICE_URL || "http://localhost:8000";
     this.timeout = parseInt(process.env.ML_SERVICE_TIMEOUT || "30000");
+    // Fallbacks are safe in development, but default to disabled in production unless explicitly enabled
+    const envFlag = (process.env.ML_FALLBACK_ENABLED || '').toLowerCase();
+    const explicit = envFlag === 'true' || envFlag === '1' || envFlag === 'yes';
+    this.fallbackEnabled = explicit || process.env.NODE_ENV !== 'production';
   }
 
   /**
@@ -63,7 +68,7 @@ export class MLServiceClient {
    * Get single match prediction
    */
   async predict(request: MLPredictionRequest): Promise<MLPredictionResponse | null> {
-    try {
+    return this.withRetries(async () => {
       if (process.env.NODE_ENV === 'development') console.log(`🧠 Requesting ML prediction for fixture ${request.fixture_id}: ${request.home_team_name} vs ${request.away_team_name}`);
       
       const response = await fetch(`${this.baseUrl}/predict`, {
@@ -88,13 +93,14 @@ export class MLServiceClient {
       if (process.env.NODE_ENV === 'development') console.error("ML prediction failed:", error);
       return null;
     }
+  });
   }
 
   /**
    * Get batch predictions for multiple matches
    */
   async predictBatch(request: MLBatchPredictionRequest): Promise<MLPredictionResponse[]> {
-    try {
+    return this.withRetries(async () => {
       if (process.env.NODE_ENV === 'development') console.log(`🧠 Requesting ML batch predictions for ${request.requests.length} matches`);
       
       const response = await fetch(`${this.baseUrl}/predictions/batch`, {
@@ -122,13 +128,14 @@ export class MLServiceClient {
       if (process.env.NODE_ENV === 'development') console.error("ML batch prediction failed:", error);
       return [];
     }
+  });
   }
 
   /**
    * Trigger model training
    */
   async trainModel(request: MLTrainingRequest): Promise<boolean> {
-    try {
+    return this.withRetries(async () => {
       if (process.env.NODE_ENV === 'development') console.log(`🏋️ Requesting ML model training: ${request.start_date} to ${request.end_date}`);
       
       const response = await fetch(`${this.baseUrl}/train`, {
@@ -150,13 +157,14 @@ export class MLServiceClient {
       if (process.env.NODE_ENV === 'development') console.error("ML model training failed:", error);
       return false;
     }
+  });
   }
 
   /**
    * Get model status and metrics
    */
   async getModelStatus(): Promise<MLModelStatusResponse | null> {
-    try {
+    return this.withRetries(async () => {
       const response = await fetch(`${this.baseUrl}/model/status`, {
         method: "GET",
         signal: AbortSignal.timeout(5000),
@@ -175,6 +183,7 @@ export class MLServiceClient {
       if (process.env.NODE_ENV === 'development') console.error("ML model status check failed:", error);
       return null;
     }
+  });
   }
 
   /**
@@ -218,6 +227,35 @@ export class MLServiceClient {
       model_version: "fallback-v1.0",
       explanation: "Prediction generated using statistical fallback due to ML service unavailability"
     };
+  }
+
+  /** Whether fallback predictions are permitted for this environment */
+  isFallbackAllowed(): boolean {
+    return this.fallbackEnabled;
+  }
+  /**
+   * Exponential backoff retry wrapper for transient errors
+   */
+  private async withRetries<T>(fn: () => Promise<T>, maxAttempts = 3, baseDelay = 500): Promise<T> {
+    let attempt = 0;
+    let lastError: any;
+    while (attempt < maxAttempts) {
+      try {
+        return await fn();
+      } catch (error: any) {
+        lastError = error;
+        // Only retry on network or timeout errors
+        if (error.name === 'AbortError' || error.message?.includes('timeout') || error.message?.includes('network')) {
+          const delay = baseDelay * Math.pow(2, attempt);
+          if (process.env.NODE_ENV === 'development') console.warn(`ML request failed (attempt ${attempt + 1}/${maxAttempts}), retrying in ${delay}ms...`, error);
+          await new Promise(res => setTimeout(res, delay));
+          attempt++;
+        } else {
+          throw error;
+        }
+      }
+    }
+    throw lastError;
   }
 }
 

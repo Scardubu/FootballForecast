@@ -8,9 +8,9 @@ import { ErrorFallback } from "@/components/error-boundary";
 import type { Standing, Team } from "@shared/schema";
 
 export function LeagueStandings() {
-  const { selectedLeague } = useLeagueStore();
+  const { selectedLeague, selectedSeason } = useLeagueStore();
   
-  const { data: standings, loading: isLoadingStandings, error: standingsError } = useApi<Standing[]>(`/api/standings/${selectedLeague}`, { retry: true });
+  const { data: standings, loading: isLoadingStandings, error: standingsError } = useApi<Standing[]>(`/api/standings/${selectedLeague}?season=${selectedSeason}`, { retry: true });
   const { data: teams, error: teamsError } = useApi<Team[]>('/api/teams', { retry: true });
 
   const getTeam = (teamId: number): Team | undefined => {
@@ -59,7 +59,7 @@ export function LeagueStandings() {
         </div>
         
         <div className="space-y-3">
-          {standings?.slice(0, 5).map((standing: Standing) => {
+          {Array.isArray(standings) && standings.slice(0, 5).map((standing: Standing) => {
             const team = standing.teamId ? getTeam(standing.teamId) : undefined;
             
             return (

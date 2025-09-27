@@ -17,9 +17,13 @@ const apiRouter = Router();
 // Publicly accessible routes
 apiRouter.use('/health', healthRouter);
 apiRouter.use('/fixtures', fixturesRouter);
+// Alias for frontend compatibility
+apiRouter.use('/football/fixtures', fixturesRouter);
 apiRouter.use('/leagues', leaguesRouter);
 apiRouter.use('/standings', standingsRouter);
 apiRouter.use('/teams', teamsRouter);
+// Alias for frontend compatibility
+apiRouter.use('/football/teams', teamsRouter);
 apiRouter.use('/predictions', predictionsRouter);
 apiRouter.use('/scraped-data', scrapedDataRouter);
 apiRouter.use('/ml', mlRouter);

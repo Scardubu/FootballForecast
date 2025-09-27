@@ -8,6 +8,7 @@
 
 import type { APIFixture, APITeamData, APIPrediction, APIStanding } from "./api-football-types";
 import type { Prediction } from "@shared/schema";
+import { measureAsync } from "./performance";
 
 export interface APIFootballResponse<T> {
   get: string;
@@ -45,15 +46,17 @@ export const apiClient = {
    * @returns The parsed JSON response.
    */
   async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
-    const response = await fetch(`/api/${endpoint}`, {
-      ...options,
-      credentials: 'include', // Ensures session cookies are sent
-      headers: {
-        'Content-Type': 'application/json',
-        ...options?.headers,
-      },
+    return measureAsync(`api-${endpoint}`, async () => {
+      const response = await fetch(`/api/${endpoint}`, {
+        ...options,
+        credentials: 'include', // Ensures session cookies are sent
+        headers: {
+          'Content-Type': 'application/json',
+          ...options?.headers,
+        },
+      });
+      return handleResponse<T>(response);
     });
-    return handleResponse<T>(response);
   },
 
   /**

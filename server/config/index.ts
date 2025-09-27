@@ -127,25 +127,45 @@ function loadConfig(): AppConfig {
     // API configuration with multiple fallback env var names
     const apiKeyValue = process.env.API_FOOTBALL_KEY || process.env.RAPIDAPI_KEY;
     if (!apiKeyValue) {
+      console.error('🔴 Missing API key: API_FOOTBALL_KEY environment variable is not set.');
+      console.error('Please check your .env file and ensure API_FOOTBALL_KEY is properly configured.');
+      console.error('You can run "npm run check-env" to verify your environment setup.');
       throw new ConfigurationError(
         'API-Football API key is required. Set either API_FOOTBALL_KEY or RAPIDAPI_KEY environment variable.',
         'API_FOOTBALL_KEY'
       );
     }
     const apiKey = apiKeyValue.trim();
+    console.log('✅ API_FOOTBALL_KEY found in environment');
     
     const validatedApiKey = validateApiKey(apiKey, 'API-Football API key');
     
     // Authentication configuration with secure validation
-    const bearerToken = validateAuthToken(
-      getRequiredEnv('API_BEARER_TOKEN', 'API Bearer token for authentication'),
-      'API_BEARER_TOKEN'
-    );
+    let bearerToken;
+    try {
+      bearerToken = validateAuthToken(
+        getRequiredEnv('API_BEARER_TOKEN', 'API Bearer token for authentication'),
+        'API_BEARER_TOKEN'
+      );
+      console.log('✅ API_BEARER_TOKEN found in environment');
+    } catch (error) {
+      console.error('🔴 Missing or invalid API_BEARER_TOKEN');
+      console.error('Please check your .env file and ensure API_BEARER_TOKEN is properly configured.');
+      throw error;
+    }
     
-    const scraperToken = validateAuthToken(
-      getRequiredEnv('SCRAPER_AUTH_TOKEN', 'Scraper authentication token'),
-      'SCRAPER_AUTH_TOKEN'
-    );
+    let scraperToken;
+    try {
+      scraperToken = validateAuthToken(
+        getRequiredEnv('SCRAPER_AUTH_TOKEN', 'Scraper authentication token'),
+        'SCRAPER_AUTH_TOKEN'
+      );
+      console.log('✅ SCRAPER_AUTH_TOKEN found in environment');
+    } catch (error) {
+      console.error('🔴 Missing or invalid SCRAPER_AUTH_TOKEN');
+      console.error('Please check your .env file and ensure SCRAPER_AUTH_TOKEN is properly configured.');
+      throw error;
+    }
     
     // Server configuration
     const port = parseInt(getOptionalEnv('PORT', '5000'), 10);

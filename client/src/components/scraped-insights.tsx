@@ -181,26 +181,26 @@ export function ScrapedInsights() {
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
               <div>
-                <div className="text-2xl font-bold text-primary">{scrapedData.length}</div>
+                <div className="text-2xl font-bold text-primary">{Array.isArray(scrapedData) ? scrapedData.length : 0}</div>
                 <div className="text-xs text-muted-foreground">Total Insights</div>
               </div>
               <div>
                 <div className="text-2xl font-bold text-secondary">
-                  {new Set(scrapedData.map(d => d.source)).size}
+                  {Array.isArray(scrapedData) ? new Set(scrapedData.map(d => d.source)).size : 0}
                 </div>
                 <div className="text-xs text-muted-foreground">Data Sources</div>
               </div>
               <div>
                 <div className="text-2xl font-bold text-accent">
-                  {((scrapedData.reduce((sum, d) => sum + d.confidence, 0) / scrapedData.length) * 100).toFixed(0)}%
+                  {Array.isArray(scrapedData) && scrapedData.length > 0 ? ((scrapedData.reduce((sum, d) => sum + d.confidence, 0) / scrapedData.length) * 100).toFixed(0) : 0}%
                 </div>
                 <div className="text-xs text-muted-foreground">Avg Confidence</div>
               </div>
               <div>
                 <div className="text-2xl font-bold text-success">
-                  {Math.max(...scrapedData.map(d => 
+                  {Array.isArray(scrapedData) && scrapedData.length > 0 ? Math.max(...scrapedData.map(d => 
                     Math.floor((new Date().getTime() - new Date(d.scrapedAt).getTime()) / (1000 * 60))
-                  ))}m
+                  )) : 0}m
                 </div>
                 <div className="text-xs text-muted-foreground">Last Updated</div>
               </div>

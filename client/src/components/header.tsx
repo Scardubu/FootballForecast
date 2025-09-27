@@ -7,7 +7,7 @@ import { MobileMenu } from "./mobile-menu";
 export function Header() {
   const { selectedLeague, setSelectedLeague } = useLeagueStore();
   const [location] = useLocation();
-  const [leagues, setLeagues] = useState([]);
+  const [leagues, setLeagues] = useState<{ id: string; name: string }[]>([]);
 
   useEffect(() => {
     async function fetchLeagues() {
@@ -48,30 +48,40 @@ export function Header() {
             </div>
             
             <nav className="hidden md:flex space-x-6">
-              <Link href="/">
-                <a className={`${location === "/" || location.startsWith("/dashboard") ? "text-foreground" : "text-muted-foreground"} hover:text-primary font-medium transition-colors`} data-testid="nav-dashboard">
-                  Dashboard
-                </a>
+              <Link
+                href="/"
+                className={`${location === "/" || location.startsWith("/dashboard") ? "text-foreground" : "text-muted-foreground"} hover:text-primary font-medium transition-colors`}
+                data-testid="nav-dashboard"
+              >
+                Dashboard
               </Link>
-              <Link href="/dashboard#predictions">
-                <a className={`${location.includes("#predictions") ? "text-foreground" : "text-muted-foreground"} hover:text-primary font-medium transition-colors`} data-testid="nav-predictions">
-                  Predictions
-                </a>
+              <Link
+                href="/dashboard#predictions"
+                className={`${location.includes("#predictions") ? "text-foreground" : "text-muted-foreground"} hover:text-primary font-medium transition-colors`}
+                data-testid="nav-predictions"
+              >
+                Predictions
               </Link>
-              <Link href="/dashboard#teams">
-                <a className={`${location.includes("#teams") ? "text-foreground" : "text-muted-foreground"} hover:text-primary font-medium transition-colors`} data-testid="nav-teams">
-                  Teams
-                </a>
+              <Link
+                href="/dashboard#teams"
+                className={`${location.includes("#teams") ? "text-foreground" : "text-muted-foreground"} hover:text-primary font-medium transition-colors`}
+                data-testid="nav-teams"
+              >
+                Teams
               </Link>
-              <Link href="/dashboard#leagues">
-                <a className={`${location.includes("#leagues") ? "text-foreground" : "text-muted-foreground"} hover:text-primary font-medium transition-colors`} data-testid="nav-leagues">
-                  Leagues
-                </a>
+              <Link
+                href="/dashboard#leagues"
+                className={`${location.includes("#leagues") ? "text-foreground" : "text-muted-foreground"} hover:text-primary font-medium transition-colors`}
+                data-testid="nav-leagues"
+              >
+                Leagues
               </Link>
-              <Link href="/dashboard#analytics">
-                <a className={`${location.includes("#analytics") ? "text-foreground" : "text-muted-foreground"} hover:text-primary font-medium transition-colors`} data-testid="nav-statistics">
-                  Statistics
-                </a>
+              <Link
+                href="/dashboard#analytics"
+                className={`${location.includes("#analytics") ? "text-foreground" : "text-muted-foreground"} hover:text-primary font-medium transition-colors`}
+                data-testid="nav-statistics"
+              >
+                Statistics
               </Link>
             </nav>
           </div>
@@ -83,7 +93,7 @@ export function Header() {
                 <SelectValue placeholder="Select League" />
               </SelectTrigger>
               <SelectContent>
-                {leagues.map((league) => (
+                {Array.isArray(leagues) && leagues.map((league) => (
                   <SelectItem key={league.id} value={league.id} data-testid={`league-option-${league.id}`}>
                     {league.name}
                   </SelectItem>

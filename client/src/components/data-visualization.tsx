@@ -1,4 +1,5 @@
 import React, { useMemo, useCallback } from "react";
+import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -19,6 +20,13 @@ const TeamPerformanceCard = React.memo(function TeamPerformanceCard({
 }) {
   // Calculate averages only when data changes
   const averages = useMemo(() => {
+    if (!Array.isArray(teamStats) || teamStats.length === 0) {
+      return {
+        scored: '0.0',
+        conceded: '0.0'
+      };
+    }
+    
     return {
       scored: (teamStats.reduce((sum, stat) => sum + parseFloat(stat.averageGoalsScored || '0'), 0) / teamStats.length).toFixed(1),
       conceded: (teamStats.reduce((sum, stat) => sum + parseFloat(stat.averageGoalsConceded || '0'), 0) / teamStats.length).toFixed(1)
@@ -60,7 +68,7 @@ const TeamPerformanceCard = React.memo(function TeamPerformanceCard({
           
           <div className="space-y-3">
             <h4 className="font-medium">Top Performers</h4>
-            {teamStats.slice(0, 2).map((stat) => (
+            {Array.isArray(teamStats) && teamStats.length > 0 && teamStats.slice(0, 2).map((stat) => (
               <div key={stat.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                 <span className="text-sm font-medium">{getTeamName(stat.teamId ?? -1)}</span>
                 <div className="flex items-center space-x-2">
@@ -70,6 +78,28 @@ const TeamPerformanceCard = React.memo(function TeamPerformanceCard({
               </div>
             ))}
           </div>
+
+          {/* Overall Ratings Chart for Top 5 Teams */}
+          {Array.isArray(teamStats) && teamStats.length > 0 && (
+            <div className="h-64 bg-background rounded-lg border border-border p-3">
+              <h4 className="font-medium mb-2">Overall Rating (Top 5)</h4>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={teamStats.slice(0, 5).map((s) => ({
+                    name: getTeamName(s.teamId ?? -1),
+                    rating: Number(s.overallRating ?? 0)
+                  }))}
+                  margin={{ top: 8, right: 16, left: 0, bottom: 8 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                  <XAxis dataKey="name" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} interval={0} angle={-15} textAnchor="end" height={36} />
+                  <YAxis tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} domain={[0, 100]} />
+                  <RechartsTooltip contentStyle={{ background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }} cursor={{ fill: 'hsl(var(--muted))' }} />
+                  <Bar dataKey="rating" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>
@@ -86,7 +116,7 @@ const TeamComparisonCard = React.memo(function TeamComparisonCard({
 }) {
   // Performance metrics calculations
   const metrics = useMemo(() => {
-    if (teams.length < 2) return null;
+    if (!Array.isArray(teams) || teams.length < 2) return null;
     
     return [
       {
@@ -135,7 +165,7 @@ const TeamComparisonCard = React.memo(function TeamComparisonCard({
         
         {metrics ? (
           <div className="space-y-4">
-            {metrics.map((metric, index) => (
+            {Array.isArray(metrics) && metrics.map((metric, index) => (
               <div key={index} className="flex items-center justify-between">
                 <span className="text-sm font-medium">{metric.name}</span>
                 <div className="flex items-center space-x-4">
@@ -165,10 +195,38 @@ const TeamComparisonCard = React.memo(function TeamComparisonCard({
             ))}
           </div>
         ) : (
-          <div className="h-32 bg-muted rounded-lg flex items-center justify-center">
-            <div className="text-center">
-              <TrendingUp className="h-8 w-8 text-muted-foreground mb-2" />
-              <p className="text-muted-foreground text-sm">Loading team comparison data...</p>
+          <div className="space-y-4 animate-pulse">
+            <div className="flex items-center justify-between">
+              <div className="h-4 w-24 bg-muted rounded"></div>
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2">
+                  <div className="h-4 w-16 bg-muted rounded"></div>
+                  <div className="w-16 h-2 bg-muted/50 rounded-full"></div>
+                  <div className="h-4 w-8 bg-muted rounded"></div>
+                </div>
+                <div className="h-4 w-4 bg-muted rounded"></div>
+                <div className="flex items-center space-x-2">
+                  <div className="h-4 w-8 bg-muted rounded"></div>
+                  <div className="w-16 h-2 bg-muted/50 rounded-full"></div>
+                  <div className="h-4 w-16 bg-muted rounded"></div>
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="h-4 w-24 bg-muted rounded"></div>
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2">
+                  <div className="h-4 w-16 bg-muted rounded"></div>
+                  <div className="w-16 h-2 bg-muted/50 rounded-full"></div>
+                  <div className="h-4 w-8 bg-muted rounded"></div>
+                </div>
+                <div className="h-4 w-4 bg-muted rounded"></div>
+                <div className="flex items-center space-x-2">
+                  <div className="h-4 w-8 bg-muted rounded"></div>
+                  <div className="w-16 h-2 bg-muted/50 rounded-full"></div>
+                  <div className="h-4 w-16 bg-muted rounded"></div>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -208,13 +266,96 @@ export const DataVisualization = React.memo(function DataVisualization() {
       <section className="mt-8">
         <h2 className="text-2xl font-bold text-foreground mb-6">Performance Analytics</h2>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {[...Array(2)].map((_, i) => (
-            <Card key={i}>
-              <CardContent className="p-6">
-                <Skeleton className="h-64 w-full" />
-              </CardContent>
-            </Card>
-          ))}
+          {/* Performance Card Skeleton */}
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <Skeleton className="h-6 w-32" />
+                <Skeleton className="h-4 w-8" />
+              </div>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-4 bg-muted/5 rounded-lg animate-pulse">
+                    <Skeleton className="h-8 w-16 mx-auto mb-2" />
+                    <Skeleton className="h-4 w-24 mx-auto" />
+                  </div>
+                  <div className="p-4 bg-muted/5 rounded-lg animate-pulse">
+                    <Skeleton className="h-8 w-16 mx-auto mb-2" />
+                    <Skeleton className="h-4 w-24 mx-auto" />
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <Skeleton className="h-5 w-28" />
+                  <div className="flex items-center justify-between p-3 bg-muted/10 rounded-lg">
+                    <Skeleton className="h-4 w-24" />
+                    <div className="flex items-center space-x-2">
+                      <Skeleton className="h-3 w-12" />
+                      <Skeleton className="h-4 w-8" />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-muted/10 rounded-lg">
+                    <Skeleton className="h-4 w-24" />
+                    <div className="flex items-center space-x-2">
+                      <Skeleton className="h-3 w-12" />
+                      <Skeleton className="h-4 w-8" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          {/* Comparison Card Skeleton */}
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <Skeleton className="h-6 w-48" />
+                <Skeleton className="h-8 w-32 rounded-md" />
+              </div>
+              <div className="space-y-4 animate-pulse">
+                <div className="flex items-center justify-between">
+                  <Skeleton className="h-4 w-24" />
+                  <div className="flex items-center space-x-4">
+                    <div className="flex items-center space-x-2">
+                      <Skeleton className="h-4 w-16" />
+                      <div className="w-16 h-2 bg-muted/50 rounded-full">
+                        <div className="h-full bg-primary/30 rounded-full" style={{ width: '50%' }} />
+                      </div>
+                      <Skeleton className="h-4 w-8" />
+                    </div>
+                    <Skeleton className="h-4 w-4" />
+                    <div className="flex items-center space-x-2">
+                      <Skeleton className="h-4 w-8" />
+                      <div className="w-16 h-2 bg-muted/50 rounded-full">
+                        <div className="h-full bg-secondary/30 rounded-full" style={{ width: '70%' }} />
+                      </div>
+                      <Skeleton className="h-4 w-16" />
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between">
+                  <Skeleton className="h-4 w-24" />
+                  <div className="flex items-center space-x-4">
+                    <div className="flex items-center space-x-2">
+                      <Skeleton className="h-4 w-16" />
+                      <div className="w-16 h-2 bg-muted/50 rounded-full">
+                        <div className="h-full bg-primary/30 rounded-full" style={{ width: '65%' }} />
+                      </div>
+                      <Skeleton className="h-4 w-8" />
+                    </div>
+                    <Skeleton className="h-4 w-4" />
+                    <div className="flex items-center space-x-2">
+                      <Skeleton className="h-4 w-8" />
+                      <div className="w-16 h-2 bg-muted/50 rounded-full">
+                        <div className="h-full bg-secondary/30 rounded-full" style={{ width: '45%' }} />
+                      </div>
+                      <Skeleton className="h-4 w-16" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </section>
     );
@@ -226,7 +367,9 @@ export const DataVisualization = React.memo(function DataVisualization() {
   }, [teams]);
   
   // Memoize top teams to prevent unnecessary array operations
-  const topTeams = useMemo(() => teamStats?.slice(0, 2) || [], [teamStats]);
+  const topTeams = useMemo(() => {
+    return Array.isArray(teamStats) ? teamStats.slice(0, 2) : [];
+  }, [teamStats]);
 
   return (
     <section className="mt-8">
@@ -242,11 +385,81 @@ export const DataVisualization = React.memo(function DataVisualization() {
           [...Array(2)].map((_, i) => (
             <Card key={i}>
               <CardContent className="p-6">
-                <div className="h-64 bg-muted rounded-lg flex items-center justify-center">
-                  <div className="text-center">
-                    <BarChart3 className="h-12 w-12 text-muted-foreground mb-2" />
-                    <p className="text-muted-foreground">Loading performance data...</p>
+                <div className="animate-pulse">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="h-6 w-28 bg-muted rounded"></div>
+                    <div className="h-6 w-8 bg-muted rounded"></div>
                   </div>
+                  {i === 0 ? (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="p-4 bg-primary/5 rounded-lg">
+                          <div className="h-8 w-12 bg-muted rounded mx-auto mb-2"></div>
+                          <div className="h-3 w-24 bg-muted rounded mx-auto"></div>
+                        </div>
+                        <div className="p-4 bg-secondary/5 rounded-lg">
+                          <div className="h-8 w-12 bg-muted rounded mx-auto mb-2"></div>
+                          <div className="h-3 w-24 bg-muted rounded mx-auto"></div>
+                        </div>
+                      </div>
+                      <div className="space-y-3">
+                        <div className="h-4 w-24 bg-muted rounded"></div>
+                        <div className="h-12 bg-muted/30 rounded-lg"></div>
+                        <div className="h-12 bg-muted/30 rounded-lg"></div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      <div className="flex items-center justify-between">
+                        <div className="h-4 w-24 bg-muted rounded"></div>
+                        <div className="flex items-center space-x-8">
+                          <div className="space-x-2 flex items-center">
+                            <div className="h-3 w-16 bg-muted rounded"></div>
+                            <div className="w-16 h-2 bg-muted/50 rounded-full"></div>
+                            <div className="h-3 w-6 bg-muted rounded"></div>
+                          </div>
+                          <div className="h-3 w-4 bg-muted rounded"></div>
+                          <div className="space-x-2 flex items-center">
+                            <div className="h-3 w-6 bg-muted rounded"></div>
+                            <div className="w-16 h-2 bg-muted/50 rounded-full"></div>
+                            <div className="h-3 w-16 bg-muted rounded"></div>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="h-4 w-24 bg-muted rounded"></div>
+                        <div className="flex items-center space-x-8">
+                          <div className="space-x-2 flex items-center">
+                            <div className="h-3 w-16 bg-muted rounded"></div>
+                            <div className="w-16 h-2 bg-muted/50 rounded-full"></div>
+                            <div className="h-3 w-6 bg-muted rounded"></div>
+                          </div>
+                          <div className="h-3 w-4 bg-muted rounded"></div>
+                          <div className="space-x-2 flex items-center">
+                            <div className="h-3 w-6 bg-muted rounded"></div>
+                            <div className="w-16 h-2 bg-muted/50 rounded-full"></div>
+                            <div className="h-3 w-16 bg-muted rounded"></div>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="h-4 w-24 bg-muted rounded"></div>
+                        <div className="flex items-center space-x-8">
+                          <div className="space-x-2 flex items-center">
+                            <div className="h-3 w-16 bg-muted rounded"></div>
+                            <div className="w-16 h-2 bg-muted/50 rounded-full"></div>
+                            <div className="h-3 w-6 bg-muted rounded"></div>
+                          </div>
+                          <div className="h-3 w-4 bg-muted rounded"></div>
+                          <div className="space-x-2 flex items-center">
+                            <div className="h-3 w-6 bg-muted rounded"></div>
+                            <div className="w-16 h-2 bg-muted/50 rounded-full"></div>
+                            <div className="h-3 w-16 bg-muted rounded"></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>

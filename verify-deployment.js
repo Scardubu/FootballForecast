@@ -5,11 +5,28 @@
  */
 
 import axios from 'axios';
+import dotenv from 'dotenv';
 
-const FRONTEND_URL = 'https://football-forecast.netlify.app';
+// Load environment variables
+dotenv.config();
+
+// Configuration
+const NETLIFY_SITE_ID = process.env.NETLIFY_SITE_ID || 'football-forecast';
+const FRONTEND_URL = `https://${NETLIFY_SITE_ID}.netlify.app`;
 const API_BASE = `${FRONTEND_URL}/api`;
 const ML_SERVICE_URL = process.env.ML_SERVICE_URL || `${FRONTEND_URL}/.netlify/functions/ml-health`;
-const API_BEARER_TOKEN = process.env.API_BEARER_TOKEN || '<your_token_here>';
+const API_BEARER_TOKEN = process.env.API_BEARER_TOKEN;
+
+// Colors for console output
+const colors = {
+  reset: '\x1b[0m',
+  red: '\x1b[31m',
+  green: '\x1b[32m',
+  yellow: '\x1b[33m',
+  blue: '\x1b[34m',
+  magenta: '\x1b[35m',
+  cyan: '\x1b[36m'
+};
 
 async function checkFrontend() {
   try {
@@ -46,36 +63,89 @@ async function checkMLService() {
 }
 
 async function main() {
-  console.log('--- Deployment Verification ---');
+  console.log(`${colors.magenta}=== Football Forecast Deployment Verification ===${colors.reset}`);
+  console.log(`${colors.blue}Target URL: ${FRONTEND_URL}${colors.reset}`);
+  console.log();
+
+  let allPassed = true;
+  const results = [];
 
   // Frontend
-  process.stdout.write('Frontend reachable... ');
-  console.log(await checkFrontend() ? 'OK' : 'FAIL');
+  process.stdout.write(`${colors.cyan}Frontend reachable...${colors.reset} `);
+  const frontendResult = await checkFrontend();
+  console.log(frontendResult ? `${colors.green}OK${colors.reset}` : `${colors.red}FAIL${colors.reset}`);
+  results.push({ name: 'Frontend', passed: frontendResult });
+  if (!frontendResult) allPassed = false;
 
   // API endpoints
-  process.stdout.write('/api/health... ');
-  console.log(await checkApi('/health') ? 'OK' : 'FAIL');
+  process.stdout.write(`${colors.cyan}/api/health...${colors.reset} `);
+  const healthResult = await checkApi('/health');
+  console.log(healthResult ? `${colors.green}OK${colors.reset}` : `${colors.red}FAIL${colors.reset}`);
+  results.push({ name: 'API Health', passed: healthResult });
+  if (!healthResult) allPassed = false;
 
-  process.stdout.write('/api/leagues... ');
-  console.log(await checkApi('/leagues') ? 'OK' : 'FAIL');
+  process.stdout.write(`${colors.cyan}/api/leagues...${colors.reset} `);
+  const leaguesResult = await checkApi('/leagues');
+  console.log(leaguesResult ? `${colors.green}OK${colors.reset}` : `${colors.red}FAIL${colors.reset}`);
+  results.push({ name: 'API Leagues', passed: leaguesResult });
+  if (!leaguesResult) allPassed = false;
 
-  process.stdout.write('/api/fixtures... ');
-  console.log(await checkApi('/fixtures') ? 'OK' : 'FAIL');
+  process.stdout.write(`${colors.cyan}/api/fixtures...${colors.reset} `);
+  const fixturesResult = await checkApi('/fixtures');
+  console.log(fixturesResult ? `${colors.green}OK${colors.reset}` : `${colors.red}FAIL${colors.reset}`);
+  results.push({ name: 'API Fixtures', passed: fixturesResult });
+  if (!fixturesResult) allPassed = false;
 
-  process.stdout.write('/api/predictions... ');
-  console.log(await checkApi('/predictions') ? 'OK' : 'FAIL');
+  process.stdout.write(`${colors.cyan}/api/predictions...${colors.reset} `);
+  const predictionsResult = await checkApi('/predictions');
+  console.log(predictionsResult ? `${colors.green}OK${colors.reset}` : `${colors.red}FAIL${colors.reset}`);
+  results.push({ name: 'API Predictions', passed: predictionsResult });
+  if (!predictionsResult) allPassed = false;
 
   // Diagnostics endpoints
-  process.stdout.write('/api/diagnostics/version... ');
-  console.log(await checkApi('/diagnostics/version') ? 'OK' : 'FAIL');
-  process.stdout.write('/api/diagnostics/status... ');
-  console.log(await checkApi('/diagnostics/status') ? 'OK' : 'FAIL');
+  process.stdout.write(`${colors.cyan}/api/diagnostics/version...${colors.reset} `);
+  const versionResult = await checkApi('/diagnostics/version');
+  console.log(versionResult ? `${colors.green}OK${colors.reset}` : `${colors.red}FAIL${colors.reset}`);
+  results.push({ name: 'API Version', passed: versionResult });
+  if (!versionResult) allPassed = false;
+  
+  process.stdout.write(`${colors.cyan}/api/diagnostics/status...${colors.reset} `);
+  const statusResult = await checkApi('/diagnostics/status');
+  console.log(statusResult ? `${colors.green}OK${colors.reset}` : `${colors.red}FAIL${colors.reset}`);
+  results.push({ name: 'API Status', passed: statusResult });
+  if (!statusResult) allPassed = false;
 
   // ML service
-  process.stdout.write('ML service health... ');
-  console.log(await checkMLService() ? 'OK' : 'FAIL');
+  process.stdout.write(`${colors.cyan}ML service health...${colors.reset} `);
+  const mlResult = await checkMLService();
+  console.log(mlResult ? `${colors.green}OK${colors.reset}` : `${colors.red}FAIL${colors.reset}`);
+  results.push({ name: 'ML Service', passed: mlResult });
+  if (!mlResult) allPassed = false;
 
-  console.log('--- Verification Complete ---');
+  console.log();
+  console.log(`${colors.magenta}=== Verification Summary ===${colors.reset}`);
+  
+  const passed = results.filter(r => r.passed).length;
+  const total = results.length;
+  const percentage = Math.round((passed / total) * 100);
+  
+  console.log(`${colors.blue}Tests passed: ${passed}/${total} (${percentage}%)${colors.reset}`);
+  
+  if (allPassed) {
+    console.log(`${colors.green}✓ All verification checks passed!${colors.reset}`);
+    return true;
+  } else {
+    console.log(`${colors.red}✗ Some verification checks failed${colors.reset}`);
+    return false;
+  }
 }
 
-main();
+// Run the main function and handle exit code
+main()
+  .then(success => {
+    process.exit(success ? 0 : 1);
+  })
+  .catch(error => {
+    console.error(`${colors.red}Verification failed with error: ${error.message}${colors.reset}`);
+    process.exit(1);
+  });

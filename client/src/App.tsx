@@ -39,6 +39,7 @@ function Router() {
 }
 
 import { LiveStatusBannerAuto } from "@/components/live-status-banner-auto";
+import { DegradedModeBanner } from "@/components/degraded-mode-banner";
 
 function App() {
   return (
@@ -47,6 +48,7 @@ function App() {
         <AuthProvider>
           <TooltipProvider>
             <Toaster />
+            <DegradedModeBanner />
             <LiveStatusBannerAuto />
             <Router />
           </TooltipProvider>

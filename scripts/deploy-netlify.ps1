@@ -22,10 +22,10 @@ if (-not (Test-Path .netlify/state.json)) {
     netlify link
 }
 
-# Build the project
+# Build the project locally
 npm run build
 
-# Deploy to production
-netlify deploy --build --prod
+# Deploy the pre-built assets to production without triggering another build on Netlify
+netlify deploy --prod --dir=dist/public --no-build
 
 Write-Host "--- Deployment Complete ---"

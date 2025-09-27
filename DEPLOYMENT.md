@@ -136,37 +136,57 @@ node supabase-migrate.js
 
 ### Deploy to Netlify
 
-```bash
-# Make sure the build works locally first
+Recommended manual method (uses pre-built assets, avoids Netlify running a second build):
 
-# Deploy to Netlify
-netlify deploy --prod
+```bash
+# Build locally first
+npm run build
+
+# Deploy pre-built assets (no Netlify build)
+netlify deploy --prod --dir=dist/public --no-build
+```
+
+Or use the provided script:
+
+```bash
+npm run deploy:manual
 ```
 
 ### Netlify Configuration
 
-The `netlify.toml` file has been created with the following configuration:
+The project uses `netlify.toml` with this effective configuration:
 
 ```toml
 [build]
   base = "."
-  publish = "dist"
+  publish = "dist/public"
   command = "npm run build"
 
 [build.environment]
   NODE_VERSION = "18.18.0"
   NPM_VERSION = "9.8.0"
 
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
 [dev]
-  command = "npm run dev"
-  port = 3000
+  command = "npm run dev:netlify"
+  port = 8888
   targetPort = 5173
-  publish = "dist"
+  publish = "dist/public"
   framework = "vite"
+  autoLaunch = true
 
 [[redirects]]
   from = "/api/*"
-  to = "https://mokwkueoqemmcfxownxt.supabase.co/api/:splat"
+  to = "/.netlify/functions/api/:splat"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/favicon.ico"
+  to = "/favicon.svg"
   status = 200
   force = true
 
@@ -175,6 +195,11 @@ The `netlify.toml` file has been created with the following configuration:
   to = "/index.html"
   status = 200
 ```
+
+### WebSocket behavior in production
+
+- Netlify Functions do not support persistent WebSocket connections.
+- The client hook `client/src/hooks/use-websocket.ts` disables WS on `*.netlify.app` and falls back to HTTP polling where applicable.
 
 ## 3. Python ML Service Deployment (Optional)
 
@@ -208,7 +233,7 @@ For continuous deployment:
 2. Set up automatic deployments for the `main` branch
 3. Configure build settings:
    - Build command: `npm run build`
-   - Publish directory: `dist`
+   - Publish directory: `dist/public`
 
 ## Troubleshooting
 

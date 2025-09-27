@@ -41,10 +41,17 @@ predictionsRouter.get("/:fixtureId", asyncHandler(async (req, res) => {
 
   let mlResponse = await mlClient.predict(mlRequest);
 
-  // 4. If ML service fails, generate a fallback
+  // 4. If ML service fails, decide whether to fallback or return 503
   if (!mlResponse) {
-    logger.warn(`ML prediction failed for fixture ${fixtureId}. Generating fallback.`);
-    mlResponse = mlClient.generateFallbackPrediction(mlRequest);
+    if (mlClient.isFallbackAllowed()) {
+      logger.warn(`ML prediction failed for fixture ${fixtureId}. Generating fallback.`);
+      mlResponse = mlClient.generateFallbackPrediction(mlRequest);
+    } else {
+      return res.status(503).json({
+        error: 'ML service unavailable',
+        message: 'Prediction service is temporarily unavailable. Please try again later.',
+      });
+    }
   }
 
   // 5. Transform the ML response and save it to storage
@@ -61,7 +68,6 @@ predictionsRouter.get("/:fixtureId", asyncHandler(async (req, res) => {
     confidence: String(mlResponse.confidence * 100),
     createdAt: new Date(),
     mlModel: mlResponse.model_version,
-    keyFactors: JSON.stringify(mlResponse.key_features),
     explanation: mlResponse.explanation || 'No explanation provided.',
   };
 

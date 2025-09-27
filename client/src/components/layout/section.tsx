@@ -1,6 +1,6 @@
 import React from "react";
 
-interface SectionProps {
+export interface SectionProps {
   title?: string;
   description?: string;
   actions?: React.ReactNode;

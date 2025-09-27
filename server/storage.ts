@@ -203,7 +203,7 @@ export class MemStorage implements IStorage {
       createdAt: new Date(),
       fixtureId: data.fixtureId ?? null,
       teamId: data.teamId ?? null,
-      confidence: Number(data.confidence ?? 0) // Ensure numeric type for downstream calculations
+      confidence: String(data.confidence ?? '0') // Ensure string type for schema
     };
     this.scrapedData.set(id, scrapedData);
     return scrapedData;
@@ -232,7 +232,8 @@ export class MemStorage implements IStorage {
 import { DatabaseStorage } from "./db-storage";
 
 // Use database storage when available, memory storage as fallback
-const hasDatabase = !!process.env.DATABASE_URL;
+const isProduction = process.env.NODE_ENV === 'production';
+const hasDatabase = !!process.env.DATABASE_URL && isProduction;
 
 export const storage: IStorage = hasDatabase 
   ? new DatabaseStorage() 

@@ -72,6 +72,7 @@ mlRouter.post("/predict", asyncHandler(async (req: Request, res: Response) => {
           over25Goals: prediction.additional_markets.over_2_5_goals.toString(),
           confidence: prediction.confidence.toString(),
           createdAt: new Date(),
+          mlModel: prediction.model_version || 'unknown',
         });
         console.log(`💾 Stored prediction for fixture ${prediction.fixture_id} in database`);
       } catch (dbError) {
@@ -131,6 +132,7 @@ mlRouter.post("/predict/batch", asyncHandler(async (req, res) => {
             over25Goals: prediction.additional_markets.over_2_5_goals.toString(),
             confidence: prediction.confidence.toString(),
             createdAt: new Date(),
+            mlModel: prediction.model_version || 'unknown',
           });
           storedPredictions.push(prediction.fixture_id);
         } catch (dbError) {
@@ -260,6 +262,7 @@ mlRouter.post("/predict/fixture/:fixtureId", asyncHandler(async (req, res) => {
         over25Goals: prediction.additional_markets.over_2_5_goals.toString(),
         confidence: prediction.confidence.toString(),
         createdAt: new Date(),
+        mlModel: prediction.model_version || 'unknown',
       });
       console.log(`💾 Stored prediction for fixture ${fixtureId} in database`);
     } catch (dbError) {

@@ -1,9 +1,14 @@
 import { Router } from "express";
-import { asyncHandler } from "../middleware";
+import { 
+  asyncHandler, 
+  logger, 
+  getPerformanceMetrics, 
+  getMemoryUsage 
+} from "../middleware";
 import { apiFootballClient } from "../services/apiFootballClient";
 import { scrapingScheduler } from "../scraping-scheduler";
-import { logger } from "../middleware/logger";
 import { getRateLimitStats } from "../middleware/rateLimiting";
+import { getConfigSummary, validateConfiguration } from "../config";
 import os from "os";
 
 export const healthRouter = Router();
@@ -12,6 +17,8 @@ export const healthRouter = Router();
 import { mlClient } from '../lib/ml-client';
 
 healthRouter.get('/health', asyncHandler(async (req, res) => {
+  const startTime = Date.now();
+  
   // Check DB connection
   let dbStatus: 'healthy' | 'unhealthy' = 'healthy';
   try {
@@ -28,6 +35,15 @@ healthRouter.get('/health', asyncHandler(async (req, res) => {
   } catch (err) {
     mlStatus = 'unhealthy';
   }
+  
+  // Check configuration
+  const configCheck = validateConfiguration();
+  
+  // Get performance metrics
+  const performanceMetrics = getPerformanceMetrics().slice(0, 5); // Just top 5
+  
+  // Response time calculation
+  const responseTime = Date.now() - startTime;
 
   res.json({
     status: dbStatus === 'healthy' && mlStatus === 'healthy' ? 'healthy' : 'degraded',
@@ -36,7 +52,16 @@ healthRouter.get('/health', asyncHandler(async (req, res) => {
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     version: process.env.npm_package_version || '1.0.0',
-    environment: process.env.NODE_ENV || 'development'
+    environment: process.env.NODE_ENV || 'development',
+    config: {
+      valid: configCheck.valid,
+      errors: configCheck.errors.length > 0 ? configCheck.errors : undefined
+    },
+    performance: {
+      responseTime,
+      metrics: performanceMetrics
+    },
+    memory: getMemoryUsage()
   });
 }));
 

@@ -1,7 +1,7 @@
 import React from "react";
 import { cn } from "@/lib/utils";
 
-interface GridProps {
+export interface GridProps {
   children: React.ReactNode;
   className?: string;
   /**

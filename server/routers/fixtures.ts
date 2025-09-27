@@ -12,26 +12,68 @@ async function fetchFromAPIFootball(endpoint: string) {
   return response;
 }
 
+import { mlClient } from '../lib/ml-client';
+
 async function generateMLPredictions(fixtureId: number, homeTeamId: number, awayTeamId: number) {
-  // Enhanced ML prediction logic placeholder
+  // Gather historical and current data
+  const homeStats = await storage.getTeamStats(homeTeamId);
+  const awayStats = await storage.getTeamStats(awayTeamId);
+  const h2h = await storage.getHeadToHead(homeTeamId, awayTeamId);
+  const fixture = await storage.getFixture(fixtureId);
+
+  // Try ML model first
+  let mlResult = null;
+  try {
+    mlResult = await mlClient.predict({ fixture, homeStats, awayStats, h2h });
+  } catch (e) {
+    console.warn('ML model unavailable, falling back to statistical prediction.', e);
+  }
+
+  // Fallback: simple statistical prediction if ML fails
+  if (!mlResult) {
+    // Example: weighted average of recent form, goals, and H2H
+    const homeForm = homeStats?.formRating || 0.5;
+    const awayForm = awayStats?.formRating || 0.5;
+    const avgGoalsHome = homeStats?.avgGoalsFor || 1.3;
+    const avgGoalsAway = awayStats?.avgGoalsFor || 1.1;
+    const h2hWinRate = h2h?.homeWinRate || 0.5;
+    const expectedGoalsHome = (avgGoalsHome * 0.6 + avgGoalsAway * 0.4) * (0.8 + 0.4 * homeForm);
+    const expectedGoalsAway = (avgGoalsAway * 0.6 + avgGoalsHome * 0.4) * (0.8 + 0.4 * awayForm);
+    const homeWinProb = Math.round((homeForm * 0.5 + h2hWinRate * 0.5) * 100);
+    const awayWinProb = Math.round((awayForm * 0.5 + (1 - h2hWinRate) * 0.5) * 100);
+    const drawProb = 100 - homeWinProb - awayWinProb;
+    return {
+      id: `ml-pred-${fixtureId}`,
+      fixtureId,
+      homeWinProbability: String(homeWinProb),
+      drawProbability: String(drawProb),
+      awayWinProbability: String(awayWinProb),
+      expectedGoalsHome: expectedGoalsHome.toFixed(2),
+      expectedGoalsAway: expectedGoalsAway.toFixed(2),
+      bothTeamsScore: String(Math.round((homeForm + awayForm) * 50)),
+      over25Goals: String(Math.round(((expectedGoalsHome + expectedGoalsAway) > 2.5 ? 0.6 : 0.4) * 100)),
+      confidence: String(Math.round(((homeForm + awayForm) / 2) * 100)),
+      createdAt: new Date(),
+      mlModel: "statistical-v1.0",
+      keyFeatures: ["team_form", "head_to_head", "avg_goals"],
+      explanation: "Prediction generated using historical team form, head-to-head, and scoring stats.",
+      modelVersion: "statistical-v1.0"
+    };
+  }
+
+  // ML model output
   return {
     id: `ml-pred-${fixtureId}`,
     fixtureId,
-    homeWinProbability: "42",
-    drawProbability: "25", 
-    awayWinProbability: "33",
-    expectedGoalsHome: "1.8",
-    expectedGoalsAway: "1.4",
-    bothTeamsScore: "68",
-    over25Goals: "58",
-    confidence: "78",
+    ...mlResult,
     createdAt: new Date(),
-    mlModel: "xgboost-v2.1",
-    keyFeatures: ["team_form", "head_to_head"] as string[],
-    explanation: "Basic prediction - enhanced ML model unavailable",
-    modelVersion: "fallback-v1.0"
+    mlModel: mlResult.modelName || 'custom-ml-prod',
+    keyFeatures: mlResult.keyFeatures || ["team_form", "head_to_head", "avg_goals"],
+    explanation: mlResult.explanation || "Prediction generated using ML model with real data.",
+    modelVersion: mlResult.modelVersion || "prod-1.0"
   };
 }
+
 
 async function updateLiveFixtures() {
   try {

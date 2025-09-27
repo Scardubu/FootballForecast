@@ -47,7 +47,7 @@ export function MobileMenu({ links }: MobileMenuProps) {
             <span className="font-bold text-primary">SabiScore</span>
           </div>
           <nav className="flex flex-col space-y-4">
-            {links.map((link) => (
+            {Array.isArray(links) && links.map((link) => (
               <Link key={link.href} href={link.href}>
                 <a
                   data-testid={link.testId}

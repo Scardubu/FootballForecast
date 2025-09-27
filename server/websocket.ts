@@ -49,8 +49,10 @@ export class FootballWebSocketServer {
       // WebSocket CSRF protection - validate Origin
       const origin = req.headers.origin;
       const allowedOrigins = [
-        'http://localhost:5000',
-        'https://localhost:5000', 
+        'http://localhost:3001',
+        'https://localhost:3001',
+        'http://localhost:5000', // Keep for backward compatibility
+        'https://localhost:5000',
         process.env.REPLIT_URL,
         process.env.VITE_APP_URL
       ].filter(Boolean);

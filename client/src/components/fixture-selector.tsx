@@ -148,7 +148,7 @@ export function FixtureSelector({ onFixtureSelect, selectedFixture }: FixtureSel
               <SelectValue placeholder="Select League" />
             </SelectTrigger>
             <SelectContent>
-              {topLeagues.map((league) => (
+              {Array.isArray(topLeagues) && topLeagues.map((league) => (
                 <SelectItem key={league.id} value={league.id}>
                   <span className="flex items-center">
                     <span className="mr-2">{league.flag}</span>
@@ -181,7 +181,7 @@ export function FixtureSelector({ onFixtureSelect, selectedFixture }: FixtureSel
 
         {/* Fixtures List */}
         <div className="space-y-3 max-h-96 overflow-y-auto">
-          {fixtures?.map((fixture: Fixture) => {
+          {Array.isArray(fixtures) && fixtures.map((fixture: Fixture) => {
             const { homeTeam, awayTeam, date, time, isToday, isPastWeek } = getFixtureDisplayData(fixture);
             const prediction = getPredictionPreview(fixture);
             const isSelected = selectedFixture?.id === fixture.id;

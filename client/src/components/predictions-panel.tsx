@@ -19,10 +19,10 @@ interface TeamsResponse {
 }
 
 export function PredictionsPanel() {
-  const { selectedLeague } = useLeagueStore();
+  const { selectedLeague, selectedSeason } = useLeagueStore();
 
   const { data: fixturesData, loading: fixturesLoading, error: fixturesError, refetch: refetchFixtures } = 
-    useApi<FixtureResponse>(`/api/football/fixtures?league=${selectedLeague}`, { retry: true });
+    useApi<FixtureResponse>(`/api/football/fixtures?league=${selectedLeague}&season=${selectedSeason}`, { retry: true });
     
   const { data: teamsData, error: teamsError } = 
     useApi<TeamsResponse>("/api/football/teams", { retry: true });
@@ -73,7 +73,7 @@ export function PredictionsPanel() {
         
         <Grid cols={{ base: 1 }} gap={6}>
           <>
-            {fixtures?.map((fixtureData) => {
+            {Array.isArray(fixtures) && fixtures.map((fixtureData) => {
               const { fixture, teams: fixtureTeams } = fixtureData;
               const homeTeam = getTeam(fixtureTeams.home.id);
               const awayTeam = getTeam(fixtureTeams.away.id);

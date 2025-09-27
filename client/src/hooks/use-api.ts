@@ -38,7 +38,18 @@ export function useApi<T>(
           }, retryDelay * Math.pow(2, attempt - 1));
           return;
         }
-        
+
+        // Gracefully handle degraded serverless mode (503) by returning safe defaults
+        if (response.status === 503) {
+          let safe: any = {};
+          const path = url.toLowerCase();
+          if (path.includes('/fixtures') || path.includes('/teams') || path.includes('/leagues') || path.includes('/standings')) {
+            safe = [];
+          }
+          setState({ data: safe as T, loading: false, error: null });
+          return;
+        }
+
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
       

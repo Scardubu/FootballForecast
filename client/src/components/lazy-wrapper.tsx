@@ -33,6 +33,26 @@ export const LazyTeamPerformance = lazy(() =>
   import('@/components/team-performance').then(module => ({ default: module.TeamPerformance }))
 );
 
+export const LazyDetailedPredictionAnalysis = lazy(() => 
+  import('@/components/detailed-prediction-analysis').then(module => ({ default: module.DetailedPredictionAnalysis }))
+);
+
+export const LazyLiveMatches = lazy(() => 
+  import('@/components/live-matches').then(module => ({ default: module.LiveMatches }))
+);
+
+export const LazyPredictionsPanel = lazy(() => 
+  import('@/components/predictions-panel').then(module => ({ default: module.PredictionsPanel }))
+);
+
+export const LazyLeagueStandings = lazy(() => 
+  import('@/components/league-standings').then(module => ({ default: module.LeagueStandings }))
+);
+
+export const LazyQuickStats = lazy(() => 
+  import('@/components/quick-stats').then(module => ({ default: module.QuickStats }))
+);
+
 // HOC for wrapping components with lazy loading
 export function withLazyLoading<T extends object>(
   Component: React.ComponentType<T>,
