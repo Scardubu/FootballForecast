@@ -41,7 +41,18 @@ export function TeamDisplay({
   const canonical = getCanonicalTeam(team.id);
   const teamFlag = getTeamFlag(team.id);
   const teamColors = getTeamColors(team.id);
-  const displayName = canonical?.displayName || team.name;
+  
+  // Get display name with proper fallback handling
+  let displayName = team.name || '';
+  
+  // Use canonical name if available
+  if (canonical?.displayName) {
+    displayName = canonical.displayName;
+  } else if (displayName) {
+    // Clean up name if it's too long
+    const cleanName = displayName.replace(/\s+(FC|United|City|Town|Athletic|Rovers)$/i, '');
+    displayName = cleanName.length > 15 ? cleanName.substring(0, 13) + '...' : cleanName;
+  }
 
   const logoSize = {
     sm: "w-6 h-6",
@@ -63,7 +74,8 @@ export function TeamDisplay({
 
   // Fallback initials with team colors
   const renderFallbackLogo = () => {
-    const initials = displayName.substring(0, 2).toUpperCase();
+    // Handle empty display name
+    const initials = displayName ? displayName.substring(0, 2).toUpperCase() : 'TM';
     const bgColor = teamColors?.primary || "#6366f1";
     
     return (
@@ -71,6 +83,7 @@ export function TeamDisplay({
         className={cn(logoSize, "rounded-full flex items-center justify-center text-white font-bold")}
         style={{ backgroundColor: bgColor }}
         data-testid={`${testId ? testId + '-' : ''}fallback-logo`}
+        title={displayName || `Team ${team.id}`}
       >
         <span className={size === "sm" ? "text-xs" : size === "md" ? "text-sm" : "text-base"}>
           {initials}
@@ -114,9 +127,9 @@ export function TeamDisplay({
         <span 
           className={cn("font-medium", textSize)}
           data-testid={`${testId ? testId + '-' : ''}name`}
-          title={canonical?.canonicalName || displayName}
+          title={canonical?.canonicalName || team.name || `Team ${team.id}`}
         >
-          {displayName}
+          {displayName || `Team ${team.id}`}
         </span>
       )}
     </div>

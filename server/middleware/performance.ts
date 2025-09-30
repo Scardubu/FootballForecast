@@ -3,7 +3,7 @@
  */
 
 import { performance } from 'perf_hooks';
-import logger from './logger';
+import logger from './logger.js';
 
 // Store performance metrics
 const metrics: Record<string, {

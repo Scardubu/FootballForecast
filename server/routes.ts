@@ -1,18 +1,18 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
-import { initializeWebSocket } from "./websocket";
+import { storage } from "./storage.js";
+import { initializeWebSocket } from "./websocket.js";
 import {
   httpLogger,
   logger,
   generalRateLimit,
   errorHandler,
   notFoundHandler
-} from "./middleware";
-import { apiRouter } from "./routers";
+} from "./middleware/index.js";
+import { apiRouter } from "./routers/index.js";
 import cookieParser from 'cookie-parser';
-import { runDataSeeder } from './lib/data-seeder';
-import { initializeSchedulers } from './lib/scheduler';
+import { runDataSeeder } from './lib/data-seeder.js';
+import { initializeSchedulers } from './lib/scheduler.js';
 
 // Data initialization utility functions moved to focused routers
 

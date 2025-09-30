@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { asyncHandler } from "../middleware";
-import { scrapingScheduler } from "../scraping-scheduler";
+import { asyncHandler } from "../middleware/index.js";
+import { scrapingScheduler } from "../scraping-scheduler.js";
 
 export const schedulerRouter = Router();
 

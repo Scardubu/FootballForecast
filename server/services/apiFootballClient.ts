@@ -2,8 +2,8 @@
  * Resilient API-Football client with retry logic, caching, and circuit breaker
  */
 
-import { api } from '../config';
-import { logger } from '../middleware/logger';
+import { api } from '../config/index.js';
+import { logger } from '../middleware/logger.js';
 
 interface CacheEntry<T> {
   data: T;

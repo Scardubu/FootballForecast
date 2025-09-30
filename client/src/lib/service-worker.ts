@@ -2,6 +2,8 @@
  * Service Worker registration and management
  */
 
+import { useEffect, useState } from 'react';
+
 interface ServiceWorkerStatus {
   supported: boolean;
   registered: boolean;
@@ -12,6 +14,9 @@ interface ServiceWorkerStatus {
 
 class ServiceWorkerManager {
   private registration: ServiceWorkerRegistration | null = null;
+  private registerPromise: Promise<ServiceWorkerStatus> | null = null;
+  private listeners = new Set<(status: ServiceWorkerStatus) => void>();
+  private navigatorListenersAttached = false;
   private status: ServiceWorkerStatus = {
     supported: false,
     registered: false,
@@ -20,37 +25,91 @@ class ServiceWorkerManager {
   };
 
   constructor() {
-    this.status.supported = 'serviceWorker' in navigator;
+    this.status.supported = typeof navigator !== 'undefined' && 'serviceWorker' in navigator;
   }
 
   async register(): Promise<ServiceWorkerStatus> {
-    if (!this.status.supported) {
-      this.status.error = 'Service Workers are not supported in this browser';
-      return this.status;
+    if (this.registerPromise) {
+      return this.registerPromise;
     }
 
-    try {
-      this.registration = await navigator.serviceWorker.register('/sw.js', {
-        scope: '/',
-      });
+    if (!this.status.supported || typeof navigator === 'undefined') {
+      this.status.error = 'Service Workers are not supported in this environment';
+      return this.snapshotStatus();
+    }
 
-      this.status.registered = true;
-      this.setupEventListeners();
-
-      // Check initial state
+    if (this.registration) {
       this.updateStatus();
-
-      console.log('✅ Service Worker registered successfully');
-      return this.status;
-    } catch (error) {
-      this.status.error = `Service Worker registration failed: ${error}`;
-      console.error('❌ Service Worker registration failed:', error);
-      return this.status;
+      return this.snapshotStatus();
     }
+
+    this.registerPromise = (async () => {
+      // Enforce secure context except on localhost to avoid registration failures
+      const isLocalhost = typeof window !== 'undefined' && /^(localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname);
+      if (typeof window !== 'undefined' && !window.isSecureContext && !isLocalhost) {
+        this.status.error = 'Service Worker requires a secure context (https) or localhost';
+        return this.snapshotStatus();
+      }
+
+      try {
+        const runtimeBaseUrl = (import.meta as any)?.env?.BASE_URL ?? '/';
+
+        const origin = typeof window !== 'undefined' ? window.location.origin : '';
+        const normalizedBaseUrl = (() => {
+          if (!runtimeBaseUrl) return '/';
+          // Ensure leading slash, strip query/hash, and collapse multiple trailing slashes
+          const base = runtimeBaseUrl.split(/[?#]/)[0];
+          const withLeadingSlash = base.startsWith('/') ? base : `/${base}`;
+          const withTrailingSlash = withLeadingSlash.endsWith('/') ? withLeadingSlash : `${withLeadingSlash}/`;
+          const collapsed = withTrailingSlash.replace(/\/+/g, '/');
+          return collapsed === '' ? '/' : collapsed;
+        })();
+
+        const swUrl = origin
+          ? `${origin}${normalizedBaseUrl}sw.js`
+          : `${normalizedBaseUrl}sw.js`;
+        const scope = normalizedBaseUrl;
+
+        if (!this.registration) {
+          try {
+            const existingRegistration = await navigator.serviceWorker.getRegistration(
+              scope === '/' ? undefined : scope
+            );
+            if (existingRegistration) {
+              this.registration = existingRegistration;
+              this.status.registered = true;
+              this.setupEventListeners();
+              this.updateStatus();
+            }
+          } catch (lookupError) {
+            console.warn('Unable to inspect existing service worker registration', lookupError);
+          }
+        }
+
+        this.registration = await navigator.serviceWorker.register(swUrl, { scope });
+
+        this.status.registered = true;
+        this.setupEventListeners();
+
+        // Check initial state
+        this.updateStatus();
+
+        console.log('✅ Service Worker registered successfully');
+        return this.snapshotStatus();
+      } catch (error) {
+        this.status.error = `Service Worker registration failed: ${error}`;
+        console.error('❌ Service Worker registration failed:', error);
+        return this.snapshotStatus();
+      } finally {
+        this.registerPromise = null;
+      }
+    })();
+
+    return this.registerPromise;
   }
 
   private setupEventListeners(): void {
-    if (!this.registration) return;
+    if (!this.registration || typeof navigator === 'undefined') return;
 
     // Listen for updates
     this.registration.addEventListener('updatefound', () => {
@@ -58,7 +117,7 @@ class ServiceWorkerManager {
       if (newWorker) {
         newWorker.addEventListener('statechange', () => {
           this.updateStatus();
-          
+
           if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
             // New version available
             this.notifyUpdate();
@@ -66,6 +125,10 @@ class ServiceWorkerManager {
         });
       }
     });
+
+    if (this.navigatorListenersAttached) {
+      return;
+    }
 
     // Listen for controller changes
     navigator.serviceWorker.addEventListener('controllerchange', () => {
@@ -77,6 +140,8 @@ class ServiceWorkerManager {
     navigator.serviceWorker.addEventListener('message', (event) => {
       this.handleMessage(event.data);
     });
+
+    this.navigatorListenersAttached = true;
   }
 
   private updateStatus(): void {
@@ -84,6 +149,7 @@ class ServiceWorkerManager {
 
     this.status.active = !!this.registration.active;
     this.status.waiting = !!this.registration.waiting;
+    this.emitStatus();
   }
 
   private notifyUpdate(): void {
@@ -95,6 +161,16 @@ class ServiceWorkerManager {
 
   private handleMessage(data: any): void {
     console.log('📨 Message from Service Worker:', data);
+    this.emitStatus();
+  }
+
+  private emitStatus(): void {
+    const snapshot = this.snapshotStatus();
+    this.listeners.forEach((listener) => listener(snapshot));
+  }
+
+  private snapshotStatus(): ServiceWorkerStatus {
+    return { ...this.status };
   }
 
   async skipWaiting(): Promise<void> {
@@ -129,7 +205,15 @@ class ServiceWorkerManager {
   }
 
   getStatus(): ServiceWorkerStatus {
-    return { ...this.status };
+    return this.snapshotStatus();
+  }
+
+  subscribe(listener: (status: ServiceWorkerStatus) => void): () => void {
+    this.listeners.add(listener);
+    listener(this.snapshotStatus());
+    return () => {
+      this.listeners.delete(listener);
+    };
   }
 
   async unregister(): Promise<boolean> {
@@ -154,20 +238,18 @@ export const serviceWorkerManager = new ServiceWorkerManager();
 
 // React hook for service worker status
 export function useServiceWorker() {
-  const [status, setStatus] = React.useState<ServiceWorkerStatus>(
+  const [status, setStatus] = useState<ServiceWorkerStatus>(
     serviceWorkerManager.getStatus()
   );
 
-  React.useEffect(() => {
+  useEffect(() => {
+    const unsubscribe = serviceWorkerManager.subscribe(setStatus);
     // Register service worker
-    serviceWorkerManager.register().then(setStatus);
+    serviceWorkerManager.register().catch((error) => {
+      console.error('Service Worker registration error:', error);
+    });
 
-    // Set up periodic status checks
-    const interval = setInterval(() => {
-      setStatus(serviceWorkerManager.getStatus());
-    }, 5000);
-
-    return () => clearInterval(interval);
+    return () => unsubscribe();
   }, []);
 
   const clearCache = (cacheName?: string) => serviceWorkerManager.clearCache(cacheName);

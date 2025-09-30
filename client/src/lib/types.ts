@@ -49,6 +49,14 @@ export interface Prediction {
   over25Goals?: string | null;
   confidence?: string | null;
   createdAt: Date;
+  mlModel?: string | null;
+  predictedOutcome?: string | null;
+  latencyMs?: number | null;
+  serviceLatencyMs?: number | null;
+  modelCalibrated?: boolean | null;
+  calibrationMetadata?: Record<string, unknown> | null;
+  modelTrained?: boolean | null;
+  aiInsight?: string | null;
 }
 
 export interface Standing {

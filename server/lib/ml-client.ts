@@ -8,7 +8,7 @@ import {
   mlPredictionResponseSchema,
   mlHealthResponseSchema,
   mlModelStatusResponseSchema
-} from "@shared/schema";
+} from "../../shared/schema.js";
 
 /**
  * HTTP client for communicating with the Python ML FastAPI service
@@ -69,6 +69,7 @@ export class MLServiceClient {
    */
   async predict(request: MLPredictionRequest): Promise<MLPredictionResponse | null> {
     return this.withRetries(async () => {
+      try {
       if (process.env.NODE_ENV === 'development') console.log(`🧠 Requesting ML prediction for fixture ${request.fixture_id}: ${request.home_team_name} vs ${request.away_team_name}`);
       
       const response = await fetch(`${this.baseUrl}/predict`, {
@@ -85,9 +86,21 @@ export class MLServiceClient {
       }
 
       const data = await response.json();
-      const validatedResponse = mlPredictionResponseSchema.parse(data);
-      
-      if (process.env.NODE_ENV === 'development') console.log(`✅ ML prediction successful: ${validatedResponse.predicted_outcome} (confidence: ${Math.round(validatedResponse.confidence * 100)}%)`);
+      const serviceLatencyHeader = response.headers.get("x-service-latency-ms");
+      const serviceLatencyMs = serviceLatencyHeader ? parseInt(serviceLatencyHeader, 10) : undefined;
+      const validatedResponse = mlPredictionResponseSchema.parse({
+        ...data,
+        service_latency_ms: data.service_latency_ms ?? serviceLatencyMs
+      });
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`✅ ML prediction successful: ${validatedResponse.predicted_outcome} (confidence: ${Math.round(validatedResponse.confidence * 100)}%)`);
+        if ('latency_ms' in validatedResponse) {
+          console.log(`⏱️ ML latency: ${validatedResponse.latency_ms} ms`);
+        }
+        if ('model_calibrated' in validatedResponse) {
+          console.log(`🔬 Calibration:`, validatedResponse.calibration);
+        }
+      }
       return validatedResponse;
     } catch (error) {
       if (process.env.NODE_ENV === 'development') console.error("ML prediction failed:", error);
@@ -101,6 +114,7 @@ export class MLServiceClient {
    */
   async predictBatch(request: MLBatchPredictionRequest): Promise<MLPredictionResponse[]> {
     return this.withRetries(async () => {
+      try {
       if (process.env.NODE_ENV === 'development') console.log(`🧠 Requesting ML batch predictions for ${request.requests.length} matches`);
       
       const response = await fetch(`${this.baseUrl}/predictions/batch`, {
@@ -120,9 +134,25 @@ export class MLServiceClient {
       
       // Handle different response formats - FastAPI returns {predictions: [...]}
       const predictionsArray = Array.isArray(data) ? data : data.predictions || [];
-      const validatedResponses = predictionsArray.map((pred: any) => mlPredictionResponseSchema.parse(pred));
-      
-      if (process.env.NODE_ENV === 'development') console.log(`✅ ML batch predictions successful: ${validatedResponses.length} predictions generated`);
+      const validatedResponses: MLPredictionResponse[] = predictionsArray.map((pred: any) => {
+        const headerLatency = response.headers.get("x-service-latency-ms");
+        const serviceLatency = headerLatency ? parseInt(headerLatency, 10) : undefined;
+        return mlPredictionResponseSchema.parse({
+          ...pred,
+          service_latency_ms: pred.service_latency_ms ?? serviceLatency
+        });
+      });
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`✅ ML batch predictions successful: ${validatedResponses.length} predictions generated`);
+        validatedResponses.forEach((resp, i) => {
+          if ('latency_ms' in resp) {
+            console.log(`⏱️ [${i}] ML latency: ${resp.latency_ms} ms`);
+          }
+          if ('model_calibrated' in resp) {
+            console.log(`🔬 [${i}] Calibration:`, resp.calibration);
+          }
+        });
+      }
       return validatedResponses;
     } catch (error) {
       if (process.env.NODE_ENV === 'development') console.error("ML batch prediction failed:", error);
@@ -136,6 +166,7 @@ export class MLServiceClient {
    */
   async trainModel(request: MLTrainingRequest): Promise<boolean> {
     return this.withRetries(async () => {
+      try {
       if (process.env.NODE_ENV === 'development') console.log(`🏋️ Requesting ML model training: ${request.start_date} to ${request.end_date}`);
       
       const response = await fetch(`${this.baseUrl}/train`, {
@@ -165,6 +196,7 @@ export class MLServiceClient {
    */
   async getModelStatus(): Promise<MLModelStatusResponse | null> {
     return this.withRetries(async () => {
+      try {
       const response = await fetch(`${this.baseUrl}/model/status`, {
         method: "GET",
         signal: AbortSignal.timeout(5000),
@@ -225,6 +257,7 @@ export class MLServiceClient {
         }
       ],
       model_version: "fallback-v1.0",
+      model_trained: false,
       explanation: "Prediction generated using statistical fallback due to ML service unavailability"
     };
   }

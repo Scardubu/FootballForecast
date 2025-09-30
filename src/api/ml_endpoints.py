@@ -53,6 +53,10 @@ class PredictionResponse(BaseModel):
     additional_markets: Dict[str, float]
     key_features: List[Dict]
     model_version: str
+    model_trained: Optional[bool] = None
+    latency_ms: Optional[float] = None
+    model_calibrated: Optional[bool] = None
+    calibration: Optional[Dict] = None
     explanation: Optional[str] = None
 
 
@@ -90,13 +94,10 @@ async def predict_match(request: PredictionRequest):
             request.away_team_id,
             request.fixture_id
         )
-        
         # Add explanation
-        explanation = generate_prediction_explanation(prediction)
-        prediction['explanation'] = explanation
-        
+        prediction['explanation'] = generate_prediction_explanation(prediction)
+        # Pass through all fields (including latency, calibration, etc)
         return PredictionResponse(**prediction)
-        
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
 
@@ -108,20 +109,15 @@ async def predict_batch_matches(requests: List[PredictionRequest]):
     """
     try:
         predictions = []
-        
         for request in requests:
             prediction = predictor.predict_match(
                 request.home_team_id,
                 request.away_team_id,
                 request.fixture_id
             )
-            
             prediction['explanation'] = generate_prediction_explanation(prediction)
             predictions.append(PredictionResponse(**prediction))
-        
-        # Return predictions array to match Node.js client expectation
         return predictions
-        
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Batch prediction failed: {str(e)}")
 

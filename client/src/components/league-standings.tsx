@@ -5,6 +5,8 @@ import { TeamDisplay } from "@/components/team-display";
 import { useLeagueStore } from "@/hooks/use-league-store";
 import { useApi } from "@/hooks/use-api";
 import { ErrorFallback } from "@/components/error-boundary";
+import { OfflineIndicator } from "@/components/offline-indicator";
+import { MockDataProvider } from "@/lib/mock-data-provider";
 import type { Standing, Team } from "@shared/schema";
 
 export function LeagueStandings() {
@@ -14,7 +16,16 @@ export function LeagueStandings() {
   const { data: teams, error: teamsError } = useApi<Team[]>('/api/teams', { retry: true });
 
   const getTeam = (teamId: number): Team | undefined => {
-    return Array.isArray(teams) ? teams.find((team: Team) => team.id === teamId) : undefined;
+    // First try to get from loaded teams data
+    const team = Array.isArray(teams) ? teams.find((team: Team) => team.id === teamId) : undefined;
+    if (team) return team;
+    
+    // If in offline mode and no team found, try mock data
+    if (MockDataProvider.isOfflineMode()) {
+      return MockDataProvider.getTeamById(teamId);
+    }
+    
+    return undefined;
   };
 
   const error = standingsError || teamsError;
@@ -24,7 +35,7 @@ export function LeagueStandings() {
   
   if (isLoadingStandings) {
     return (
-      <Card>
+      <Card className="glass-effect hover-lift smooth-transition">
         <CardContent className="p-6">
           <div className="flex items-center justify-between mb-4">
             <Skeleton className="h-6 w-32" />
@@ -44,10 +55,13 @@ export function LeagueStandings() {
   }
 
   return (
-    <Card data-testid="league-standings">
+    <Card data-testid="league-standings" className="glass-effect hover-lift smooth-transition">
       <CardContent className="p-6">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold text-foreground">League Standings</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-lg font-bold text-foreground">League Standings</h3>
+            <OfflineIndicator variant="inline" />
+          </div>
           <Button 
             variant="ghost" 
             size="sm" 
@@ -64,7 +78,7 @@ export function LeagueStandings() {
             
             return (
               <div 
-                key={standing.id} 
+                key={standing.id || `standing-${standing.teamId}-${standing.position}`} 
                 className="flex items-center justify-between py-2 border-b border-border last:border-b-0"
                 data-testid={`standing-row-${standing.teamId}`}
               >
@@ -93,7 +107,7 @@ export function LeagueStandings() {
           })}
         </div>
         
-        {(!standings || standings.length === 0) && (
+        {(!Array.isArray(standings) || standings.length === 0) && (
           <div className="text-center py-8">
             <i className="fas fa-table text-4xl text-muted-foreground mb-4"></i>
             <p className="text-muted-foreground">No standings data available</p>

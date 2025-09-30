@@ -1,10 +1,10 @@
 import { Router } from "express";
-import { asyncHandler } from "../middleware";
-import { storage } from "../storage";
+import { asyncHandler } from "../middleware/index.js";
+import { storage } from "../storage.js";
 
 export const teamsRouter = Router();
 
-import { apiFootballClient } from "../services/apiFootballClient";
+import { apiFootballClient } from "../services/apiFootballClient.js";
 
 // Get teams, with optional filtering by league and season
 teamsRouter.get("/", asyncHandler(async (req, res) => {

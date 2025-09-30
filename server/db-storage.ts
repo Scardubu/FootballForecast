@@ -1,12 +1,13 @@
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { eq, desc, and, sql, inArray } from "drizzle-orm";
-import type { IStorage } from "./storage";
+import type { IStorage } from "./storage.js";
 import {
-  users, leagues, teams, fixtures, predictions, standings, teamStats, scrapedData,
+  users, leagues, teams, fixtures, predictions, standings, teamStats, scrapedData, ingestionEvents,
   type User, type League, type Team, type Fixture, type Prediction, 
-  type Standing, type TeamStats, type InsertUser, type ScrapedData, type InsertScrapedData
-} from "../shared/schema";
+  type Standing, type TeamStats, type InsertUser, type ScrapedData, type InsertScrapedData,
+  type IngestionEvent, type InsertIngestionEvent, type UpdateIngestionEvent
+} from "../shared/schema.js";
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
@@ -16,8 +17,13 @@ const db = drizzle(pool);
 export class DatabaseStorage implements IStorage {
   
   async getUser(id: string): Promise<User | undefined> {
-    const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
-    return result[0];
+    try {
+      const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
+      return result[0];
+    } catch (error) {
+      console.error('Database error in getUser:', error);
+      throw error;
+    }
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
@@ -32,7 +38,12 @@ export class DatabaseStorage implements IStorage {
 
   // Football data methods
   async getLeagues(): Promise<League[]> {
-    return await db.select().from(leagues).orderBy(leagues.name);
+    try {
+      return await db.select().from(leagues).orderBy(leagues.name);
+    } catch (error) {
+      console.error('Database error in getLeagues:', error);
+      return [];
+    }
   }
 
   async getLeague(id: number): Promise<League | undefined> {
@@ -79,7 +90,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getTeams(): Promise<Team[]> {
-    return await db.select().from(teams).orderBy(teams.name);
+    try {
+      return await db.select().from(teams).orderBy(teams.name);
+    } catch (error) {
+      console.error('Database error in getTeams:', error);
+      return [];
+    }
   }
 
   async getTeam(id: number): Promise<Team | undefined> {
@@ -233,6 +249,12 @@ export class DatabaseStorage implements IStorage {
           bothTeamsScore: prediction.bothTeamsScore,
           over25Goals: prediction.over25Goals,
           confidence: prediction.confidence,
+          mlModel: prediction.mlModel,
+          predictedOutcome: prediction.predictedOutcome,
+          latencyMs: prediction.latencyMs,
+          serviceLatencyMs: prediction.serviceLatencyMs,
+          modelCalibrated: prediction.modelCalibrated,
+          calibrationMetadata: prediction.calibrationMetadata,
           createdAt: new Date(), // Update timestamp on modification
         }
       })
@@ -242,9 +264,14 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getStandings(leagueId: number): Promise<Standing[]> {
-    return await db.select().from(standings)
-      .where(eq(standings.leagueId, leagueId))
-      .orderBy(standings.position);
+    try {
+      return await db.select().from(standings)
+        .where(eq(standings.leagueId, leagueId))
+        .orderBy(standings.position);
+    } catch (error) {
+      console.error('Database error in getStandings:', error);
+      return [];
+    }
   }
 
   async updateStandings(standingsArray: Standing[]): Promise<Standing[]> {
@@ -273,14 +300,19 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getTeamStats(teamId: number, leagueId?: number): Promise<TeamStats | undefined> {
-    const conditions = [eq(teamStats.teamId, teamId)];
-    
-    if (leagueId) {
-      conditions.push(eq(teamStats.leagueId, leagueId));
+    try {
+      const conditions = [eq(teamStats.teamId, teamId)];
+      
+      if (leagueId) {
+        conditions.push(eq(teamStats.leagueId, leagueId));
+      }
+      
+      const result = await db.select().from(teamStats).where(and(...conditions)).limit(1);
+      return result[0];
+    } catch (error) {
+      console.error('Database error in getTeamStats:', error);
+      return undefined;
     }
-    
-    const result = await db.select().from(teamStats).where(and(...conditions)).limit(1);
-    return result[0];
   }
 
   async updateTeamStats(stats: TeamStats): Promise<TeamStats> {
@@ -341,5 +373,87 @@ export class DatabaseStorage implements IStorage {
       .limit(1);
     
     return result[0];
+  }
+
+  async createIngestionEvent(event: InsertIngestionEvent): Promise<IngestionEvent> {
+    const startedAt = event.startedAt ?? new Date();
+    const dedupeKey = event.dedupeKey ?? `${event.source}:${event.scope}:${startedAt.toISOString()}`;
+    const values = {
+      source: event.source,
+      scope: event.scope,
+      status: event.status ?? "running",
+      startedAt,
+      finishedAt: event.finishedAt ?? null,
+      durationMs: event.durationMs ?? null,
+      recordsWritten: event.recordsWritten ?? null,
+      fallbackUsed: event.fallbackUsed ?? false,
+      checksum: event.checksum ?? null,
+      metadata: event.metadata ?? null,
+      error: event.error ?? null,
+      dedupeKey,
+      retryCount: event.retryCount ?? 0,
+      lastErrorAt: event.lastErrorAt ?? null,
+      metrics: event.metrics ?? null,
+      updatedAt: event.updatedAt ?? startedAt
+    };
+
+    const inserted = await db.insert(ingestionEvents).values(values).returning();
+    return inserted[0];
+  }
+
+  async updateIngestionEvent(id: string, update: UpdateIngestionEvent): Promise<IngestionEvent | undefined> {
+    const existing = await db.select().from(ingestionEvents).where(eq(ingestionEvents.id, id)).limit(1);
+    if (!existing[0]) {
+      return undefined;
+    }
+
+    const updateValues: Record<string, any> = {};
+    if (update.status !== undefined) updateValues.status = update.status;
+    if (update.startedAt !== undefined) updateValues.startedAt = update.startedAt;
+    if (update.finishedAt !== undefined) updateValues.finishedAt = update.finishedAt;
+    if (update.durationMs !== undefined) updateValues.durationMs = update.durationMs;
+    if (update.recordsWritten !== undefined) updateValues.recordsWritten = update.recordsWritten;
+    if (update.fallbackUsed !== undefined) updateValues.fallbackUsed = update.fallbackUsed;
+    if (update.checksum !== undefined) updateValues.checksum = update.checksum;
+    if (update.error !== undefined) updateValues.error = update.error;
+    if (update.metadata !== undefined) {
+      const currentMetadata = existing[0].metadata as Record<string, unknown> | null | undefined;
+      updateValues.metadata = {
+        ...(currentMetadata ?? {}),
+        ...update.metadata
+      };
+    }
+    if (update.retryCount !== undefined) updateValues.retryCount = update.retryCount;
+    if (update.lastErrorAt !== undefined) updateValues.lastErrorAt = update.lastErrorAt;
+    if (update.metrics !== undefined) updateValues.metrics = update.metrics;
+
+    updateValues.updatedAt = update.updatedAt ?? new Date();
+
+    if (Object.keys(updateValues).length === 0) {
+      return existing[0];
+    }
+
+    const updated = await db.update(ingestionEvents)
+      .set(updateValues)
+      .where(eq(ingestionEvents.id, id))
+      .returning();
+
+    return updated[0];
+  }
+
+  async getIngestionEvent(id: string): Promise<IngestionEvent | undefined> {
+    const result = await db.select().from(ingestionEvents).where(eq(ingestionEvents.id, id)).limit(1);
+    return result[0];
+  }
+
+  async getRecentIngestionEvents(limit: number = 20): Promise<IngestionEvent[]> {
+    try {
+      return await db.select().from(ingestionEvents)
+        .orderBy(desc(ingestionEvents.startedAt))
+        .limit(limit);
+    } catch (error) {
+      console.error('Database error in getRecentIngestionEvents:', error);
+      return [];
+    }
   }
 }

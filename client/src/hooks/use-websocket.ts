@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { queryClient } from '@/lib/queryClient';
-import type { Fixture } from '@shared/schema';
 
 interface WebSocketMessage {
   type: 'fixture_update' | 'live_scores' | 'match_events' | 'pong';
@@ -67,32 +66,26 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
   const heartbeatTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const getWebSocketUrl = useCallback(() => {
-    // Managed provider via env flags (Vite)
-    const managedEnabled = (import.meta as any).env?.VITE_WS_ENABLED === 'true';
-    const managedUrl = (import.meta as any).env?.VITE_WS_URL as string | undefined;
-    const managedToken = (import.meta as any).env?.VITE_WS_AUTH_TOKEN as string | undefined;
-
-    if (managedEnabled && managedUrl) {
-      // Append token as query param if provided (headers not supported in WebSocket constructor)
-      try {
-        const url = new URL(managedUrl);
-        if (managedToken) url.searchParams.set('token', managedToken);
-        return url.toString();
-      } catch {
-        // Fallback to raw if URL parsing fails
-        return managedToken ? `${managedUrl}${managedUrl.includes('?') ? '&' : '?'}token=${encodeURIComponent(managedToken)}` : managedUrl;
+    // Check if we're in development mode
+    const isDevelopment = import.meta.env.DEV === true;
+    
+    // In development, use the local server
+    if (isDevelopment) {
+      // Use explicit port 5000 for WebSocket in development
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const host = window.location.hostname;
+      
+      // Handle browser preview proxy scenario (Chrome DevTools shows ws://127.0.0.1:xxxx/ws)
+      // Use actual server host instead of proxy
+      if (host === '127.0.0.1' && window.location.port !== '5000') {
+        return `${protocol}//localhost:5000/ws`;
       }
+      
+      return `${protocol}//${host}:5000/ws`;
     }
-
-    // Production fallback for Netlify: WebSockets not supported if no managed provider configured
-    if ((process.env.NODE_ENV === 'production' || import.meta.env.PROD === true) && 
-        window.location.hostname.endsWith('netlify.app')) {
-      console.log('WebSockets are not available on Netlify unless using a managed provider.');
-      return null;
-    }
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.host;
-    return `${protocol}//${host}/ws`;
+    
+    // In production, WebSockets are disabled
+    return null;
   }, []);
 
   const clearTimeouts = useCallback(() => {
@@ -136,7 +129,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
           // Handle individual score updates
           if (message.data?.fixtureId) {
             // Update specific fixture in cache
-            queryClient.setQueryData(['/api/fixtures/live'], (old: Fixture[] | undefined) => {
+            queryClient.setQueryData(['/api/fixtures/live'], (old: any[] | undefined) => {
               if (!old) return old;
               return old.map(fixture => 
                 fixture.id === message.data.fixtureId 
@@ -236,31 +229,53 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
         
         onDisconnect?.();
 
-        // Attempt to reconnect if enabled
-        // Don't attempt to reconnect in production on Netlify or if the WebSocket URL is null
-    const isNetlifyProduction = (process.env.NODE_ENV === 'production' || import.meta.env.PROD === true) && 
-                               window.location.hostname.endsWith('netlify.app');
-    
-    if (reconnect && reconnectAttemptsRef.current < maxReconnectAttempts && !event.wasClean && !isNetlifyProduction) {
+        // Always attempt to reconnect in development mode,
+        // with a more aggressive strategy to handle proxy issues
+        const isDevelopment = import.meta.env.DEV === true;
+        
+        if (reconnect && (isDevelopment || reconnectAttemptsRef.current < maxReconnectAttempts) && !event.wasClean) {
           reconnectAttemptsRef.current++;
           setConnectionStats(prev => ({ 
             ...prev, 
             reconnectAttempts: reconnectAttemptsRef.current 
           }));
           
-          if (process.env.NODE_ENV === 'development') console.log(`🔄 Attempting to reconnect (${reconnectAttemptsRef.current}/${maxReconnectAttempts})...`);
+          // Use a shorter initial retry for development environment
+          const retryDelay = isDevelopment 
+            ? Math.min(1000, reconnectInterval) // Quick first retry
+            : reconnectInterval * reconnectAttemptsRef.current; // Exponential backoff in production
+          
+          if (process.env.NODE_ENV === 'development') {
+            console.log(`🔄 Attempting to reconnect (${reconnectAttemptsRef.current}/${isDevelopment ? 'unlimited' : maxReconnectAttempts})...`);
+            console.log(`🕒 Will retry in ${retryDelay}ms`);
+          }
           
           reconnectTimeoutRef.current = setTimeout(() => {
             connect();
-          }, reconnectInterval * reconnectAttemptsRef.current); // Exponential backoff
+          }, retryDelay);
         }
       };
 
       wsRef.current.onerror = (error) => {
-        if (process.env.NODE_ENV === 'development') console.error('❌ WebSocket error:', error);
-        setError('WebSocket connection failed');
+        if (process.env.NODE_ENV === 'development') {
+          console.error('❌ WebSocket error:', error);
+          console.log('🔍 WebSocket URL:', wsUrl);
+          console.log('🔍 WebSocket readyState:', wsRef.current?.readyState);
+        }
+        
+        // Don't set error state immediately, let onclose handle reconnection
+        // This prevents duplicate error messages and reconnection attempts
         setIsConnecting(false);
         onError?.(error);
+        
+        // Force close to trigger reconnect if socket is stuck
+        if (wsRef.current && wsRef.current.readyState !== WebSocket.CLOSED) {
+          try {
+            wsRef.current.close();
+          } catch (e) {
+            // Ignore close errors
+          }
+        }
       };
 
     } catch (error) {
@@ -331,10 +346,10 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
 
   // Connect once on mount, disconnect only on unmount
   useEffect(() => {
-    // Use the explicit environment variable to detect Netlify builds
-    const isNetlifyBuild = import.meta.env.VITE_NETLIFY_BUILD === 'true';
+    // Only attempt WebSocket connection in development mode
+    const isDevelopment = import.meta.env.DEV === true;
 
-    if (!isNetlifyBuild) {
+    if (isDevelopment) {
       connect();
     } else {
       console.log("Live updates via WebSockets are disabled in this environment.");
@@ -342,9 +357,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
     }
 
     return () => {
-      if (!isNetlifyBuild) {
-        disconnect();
-      }
+      disconnect();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // This effect should only run once on mount.

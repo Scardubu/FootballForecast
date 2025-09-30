@@ -3,7 +3,7 @@
  */
 
 import type { Request, Response, NextFunction } from 'express';
-import logger from './logger';
+import logger from './logger.js';
 
 export interface ProblemDetails {
   type: string;

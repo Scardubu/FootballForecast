@@ -8,7 +8,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   plugins: [
-    react(),
+    react({
+      // Use default React plugin configuration with automatic JSX runtime
+      jsxRuntime: 'automatic'
+    }),
     // Removed Replit-specific plugins for local development
     // @replit/vite-plugin-runtime-error-modal and cartographer
   ],
@@ -24,59 +27,41 @@ export default defineConfig({
     outDir: path.resolve(__dirname, "dist/public"),
     emptyOutDir: true, // Force clean of the output directory on each build
     chunkSizeWarningLimit: 1000, // Increase warning limit
-    sourcemap: false, // Disable source maps in production for smaller bundles
+    sourcemap: process.env.NODE_ENV === 'development', // Source maps only in dev
+    cssCodeSplit: true, // Split CSS into separate files for better caching
+    assetsInlineLimit: 4096, // Inline assets smaller than 4kb
     rollupOptions: {
+      // Enable tree shaking
+      treeshake: {
+        preset: 'recommended',
+        moduleSideEffects: false,
+      },
       output: {
-        manualChunks: {
-          // Split vendor packages into separate chunks
-          'react-vendor': ['react', 'react-dom'],
-          'ui-vendor': [
-            '@radix-ui/react-accordion',
-            '@radix-ui/react-alert-dialog',
-            '@radix-ui/react-aspect-ratio',
-            '@radix-ui/react-avatar',
-            '@radix-ui/react-checkbox',
-            '@radix-ui/react-collapsible',
-            '@radix-ui/react-context-menu',
-            '@radix-ui/react-dialog',
-            '@radix-ui/react-dropdown-menu',
-            '@radix-ui/react-hover-card',
-            '@radix-ui/react-label',
-            '@radix-ui/react-menubar',
-            '@radix-ui/react-navigation-menu',
-            '@radix-ui/react-popover',
-            '@radix-ui/react-progress',
-            '@radix-ui/react-radio-group',
-            '@radix-ui/react-scroll-area',
-            '@radix-ui/react-select',
-            '@radix-ui/react-separator',
-            '@radix-ui/react-slider',
-            '@radix-ui/react-slot',
-            '@radix-ui/react-switch',
-            '@radix-ui/react-tabs',
-            '@radix-ui/react-toast',
-            '@radix-ui/react-toggle',
-            '@radix-ui/react-toggle-group',
-            '@radix-ui/react-tooltip',
-          ],
-          'chart-vendor': ['recharts'],
-          'query-vendor': ['@tanstack/react-query'],
-          'utils-vendor': ['date-fns', 'class-variance-authority', 'clsx', 'tailwind-merge', 'zod'],
-        },
-        // Improve chunk naming for better caching
-        chunkFileNames: `assets/[name]-[hash]-${Date.now()}.js`,
-        entryFileNames: `assets/[name]-[hash]-${Date.now()}.js`,
-        assetFileNames: `assets/[name]-[hash]-${Date.now()}.[ext]`,
+        // Let Vite/Rollup handle chunk splitting automatically for now
+        // Improve chunk naming for better caching with stable content hashes
+        chunkFileNames: `assets/[name]-[hash].js`,
+        entryFileNames: `assets/[name]-[hash].js`,
+        assetFileNames: `assets/[name]-[hash].[ext]`,
       },
     },
     // Enable minification optimizations
     minify: 'esbuild',
     target: 'es2020',
+    // Optimize dependencies
+    commonjsOptions: {
+      include: [/node_modules/],
+      extensions: ['.js', '.cjs'],
+    },
   },
   server: {
     fs: {
       strict: true,
       deny: ["**/.*"],
+    },
+    headers: {
+      'Content-Security-Policy': process.env.NODE_ENV === 'development' 
+        ? "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; style-src-elem 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data: https:; connect-src 'self' ws: wss:;"
+        : "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; style-src-elem 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data: https:;"
     },
     proxy: {
       '/api': {

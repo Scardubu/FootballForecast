@@ -31,7 +31,8 @@ export const CANONICAL_TEAMS: Record<number, CanonicalTeam> = {
     colors: {
       primary: "#C8102E",
       secondary: "#F6EB61"
-    }
+    },
+    fallbackLogo: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iI0M4MTAyRSIvPjx0ZXh0IHg9IjUwIiB5PSI1MCIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjI0IiBmb250LXdlaWdodD0iYm9sZCIgZmlsbD0id2hpdGUiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGFsaWdubWVudC1iYXNlbGluZT0ibWlkZGxlIj5MRkM8L3RleHQ+PC9zdmc+"
   },
   50: {
     id: 50,
@@ -156,14 +157,39 @@ export function getCanonicalTeam(teamId: number): CanonicalTeam | undefined {
 }
 
 /**
+ * Normalize team ID to handle different API formats
+ * Some APIs might use different IDs for the same team
+ */
+export function normalizeTeamId(teamId: number | string): number {
+  const id = typeof teamId === 'string' ? parseInt(teamId, 10) : teamId;
+  
+  // Add any known ID mappings here
+  const idMappings: Record<number, number> = {
+    // Example: 12345: 40, // Map API ID 12345 to our canonical Liverpool ID 40
+  };
+  
+  return idMappings[id] || id;
+}
+
+/**
  * Get team name with fallback to canonical name
  */
 export function getTeamDisplayName(teamId: number, fallbackName?: string): string {
-  const canonical = getCanonicalTeam(teamId);
+  const normalizedId = normalizeTeamId(teamId);
+  const canonical = getCanonicalTeam(normalizedId);
+  
   if (canonical) {
     return canonical.displayName;
   }
-  return fallbackName || `Team ${teamId}`;
+  
+  // Clean up fallback name if provided
+  if (fallbackName) {
+    // Remove any trailing FC, United, etc. if too long for display
+    const cleanName = fallbackName.replace(/\s+(FC|United|City|Town|Athletic|Rovers)$/i, '');
+    return cleanName.length > 20 ? cleanName.substring(0, 18) + '...' : cleanName;
+  }
+  
+  return `Team ${teamId}`;
 }
 
 /**

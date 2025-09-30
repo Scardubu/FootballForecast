@@ -3,7 +3,7 @@
  */
 import * as cron from 'node-cron';
 import { spawn } from 'child_process';
-import { storage } from './storage';
+import { storage } from './storage.js';
 
 interface ScrapeJob {
   id: string;

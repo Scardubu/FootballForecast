@@ -9,8 +9,9 @@ import { scrapedDataRouter } from './scraped-data';
 import { schedulerRouter } from './scheduler';
 import { authRouter } from './auth';
 import { mlRouter } from './ml';
-import { createAuthMiddleware } from '../middleware';
+import { createAuthMiddleware } from '../middleware/index';
 import { diagnosticsRouter } from './diagnostics';
+import { telemetryRouter } from './telemetry';
 
 const apiRouter = Router();
 
@@ -28,6 +29,7 @@ apiRouter.use('/predictions', predictionsRouter);
 apiRouter.use('/scraped-data', scrapedDataRouter);
 apiRouter.use('/ml', mlRouter);
 apiRouter.use('/diagnostics', diagnosticsRouter);
+apiRouter.use('/telemetry', telemetryRouter);
 
 // Auth routes
 apiRouter.use('/auth', authRouter);

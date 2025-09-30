@@ -82,7 +82,7 @@ interface SkeletonComponentProps {
 export const MatchCardSkeleton = React.memo(function MatchCardSkeleton({ 'data-testid': dataTestId = 'match-card-skeleton' }: SkeletonComponentProps) {
   return (
     <Card 
-      className="hover-lift"
+      className="glass-effect hover-lift smooth-transition"
       data-testid={dataTestId}
       aria-busy="true">
       <CardContent className="p-6">
@@ -123,7 +123,7 @@ export const MatchCardSkeleton = React.memo(function MatchCardSkeleton({ 'data-t
 export const PredictionCardSkeleton = React.memo(function PredictionCardSkeleton({ 'data-testid': dataTestId = 'prediction-card-skeleton' }: SkeletonComponentProps) {
   return (
     <Card 
-      className="hover-lift"
+      className="glass-effect hover-lift smooth-transition"
       data-testid={dataTestId}
       aria-busy="true">
       <CardContent className="p-6">
@@ -179,6 +179,7 @@ export const PredictionCardSkeleton = React.memo(function PredictionCardSkeleton
 export const StandingsTableSkeleton = React.memo(function StandingsTableSkeleton({ 'data-testid': dataTestId = 'standings-table-skeleton' }: SkeletonComponentProps) {
   return (
     <Card
+      className="glass-effect hover-lift smooth-transition"
       data-testid={dataTestId}
       aria-busy="true">
       <CardContent className="p-6">

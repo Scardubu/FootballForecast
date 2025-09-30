@@ -1,14 +1,17 @@
 """
 Production-ready Football Match Predictor with XGBoost
 """
+import json
+import os
+import sqlite3
+import time
+from datetime import datetime
+from typing import Dict, List, Optional, Tuple
+
 import numpy as np
 import pandas as pd
 import xgboost as xgb
-from typing import Dict, List, Optional, Tuple
-import json
-import sqlite3
-from datetime import datetime, timedelta
-import os
+
 from .feature_engineering import FeatureEngineering
 
 class FootballPredictor:
@@ -20,11 +23,13 @@ class FootballPredictor:
         self.feature_engineer = FeatureEngineering(db_path)
         self.model = None
         self.feature_names = None
-        self.model_version = "xgboost-v2.1"
+        self.model_version = "xgboost-v2.2"
         self.is_trained = False
-        
+        self.temperature = 1.0
+        self.calibration_method = "temperature"
         # Try to load existing model
         self._load_model()
+        self._load_calibration()
     
     def _load_model(self):
         """Load trained model if available"""
@@ -66,39 +71,32 @@ class FootballPredictor:
             'away_avg_xg_for', 'away_avg_xg_against'
         ]
         self.is_trained = False
+        self.temperature = 1.0
+        self.calibration_method = "temperature"
     
     def predict_match(self, home_team_id: int, away_team_id: int, fixture_id: Optional[int] = None) -> Dict:
         """Generate match prediction with confidence and explanation"""
         try:
+            inference_start = time.perf_counter()
             # Create features for the match
             features = self.feature_engineer.create_match_features(
                 fixture_id or 0, home_team_id, away_team_id
             )
-            
             # Convert to model input format
             X = self._features_to_array(features)
-            
             if self.is_trained and self.model is not None:
-                # Use trained model
-                probabilities = self.model.predict_proba(X.reshape(1, -1))[0]
-                
-                # XGBoost outputs [away_win, draw, home_win] probabilities
+                raw_probabilities = self.model.predict_proba(X.reshape(1, -1))[0]
+                probabilities = self._apply_temperature_scaling(raw_probabilities)
                 home_prob = float(probabilities[2]) if len(probabilities) > 2 else 0.45
                 draw_prob = float(probabilities[1]) if len(probabilities) > 1 else 0.25
                 away_prob = float(probabilities[0]) if len(probabilities) > 0 else 0.30
-                
             else:
-                # Use feature-based statistical model as fallback
                 home_prob, draw_prob, away_prob = self._statistical_prediction(features)
-            
-            # Normalize probabilities
             total_prob = home_prob + draw_prob + away_prob
             if total_prob > 0:
                 home_prob /= total_prob
-                draw_prob /= total_prob  
+                draw_prob /= total_prob
                 away_prob /= total_prob
-            
-            # Determine most likely outcome
             if home_prob > draw_prob and home_prob > away_prob:
                 predicted_outcome = "home_win"
                 confidence = home_prob
@@ -108,15 +106,10 @@ class FootballPredictor:
             else:
                 predicted_outcome = "draw"
                 confidence = draw_prob
-            
-            # Calculate expected goals using xG features
-            expected_goals_home = max(features.get('home_avg_xg_for', 1.4) + 
-                                   features.get('overall_home_advantage', 0.15), 0.5)
+            expected_goals_home = max(features.get('home_avg_xg_for', 1.4) + features.get('overall_home_advantage', 0.15), 0.5)
             expected_goals_away = max(features.get('away_avg_xg_for', 1.2), 0.5)
-            
-            # Generate key features for explanation
             key_features = self._generate_key_features(features)
-            
+            inference_latency_ms = round((time.perf_counter() - inference_start) * 1000, 3)
             return {
                 "fixture_id": fixture_id,
                 "predicted_outcome": predicted_outcome,
@@ -131,16 +124,20 @@ class FootballPredictor:
                     "away": round(expected_goals_away, 2)
                 },
                 "additional_markets": {
-                    "both_teams_score": round(min(0.85, max(0.35, 
-                        (expected_goals_home * expected_goals_away) / 2.0)), 3),
-                    "over_2_5_goals": round(min(0.85, max(0.15, 
-                        (expected_goals_home + expected_goals_away - 2.5) / 2.0)), 3),
-                    "under_2_5_goals": round(min(0.85, max(0.15, 
-                        1 - (expected_goals_home + expected_goals_away - 2.5) / 2.0)), 3)
+                    "both_teams_score": round(min(0.85, max(0.35, (expected_goals_home * expected_goals_away) / 2.0)), 3),
+                    "over_2_5_goals": round(min(0.85, max(0.15, (expected_goals_home + expected_goals_away - 2.5) / 2.0)), 3),
+                    "under_2_5_goals": round(min(0.85, max(0.15, 1 - (expected_goals_home + expected_goals_away - 2.5) / 2.0)), 3)
                 },
                 "key_features": key_features,
                 "model_version": self.model_version,
-                "model_trained": self.is_trained
+                "model_trained": self.is_trained,
+                "latency_ms": inference_latency_ms,
+                "model_calibrated": self.temperature != 1.0,
+                "calibration": {
+                    "method": self.calibration_method,
+                    "temperature": round(self.temperature, 4),
+                    "applied": self.temperature != 1.0
+                }
             }
             
         except Exception as e:
@@ -150,14 +147,12 @@ class FootballPredictor:
     def _features_to_array(self, features: Dict) -> np.ndarray:
         """Convert feature dictionary to numpy array for model input"""
         if not self.feature_names:
-            # Default feature set
             self.feature_names = [
                 'xg_advantage', 'form_advantage', 'h2h_advantage', 
                 'momentum_advantage', 'overall_home_advantage',
                 'home_avg_xg_for', 'home_avg_xg_against', 
                 'away_avg_xg_for', 'away_avg_xg_against'
             ]
-        
         feature_values = []
         for feature_name in self.feature_names:
             value = features.get(feature_name, 0.0)
@@ -165,8 +160,74 @@ class FootballPredictor:
                 feature_values.append(float(value))
             else:
                 feature_values.append(0.0)
-        
         return np.array(feature_values)
+
+    def _apply_temperature_scaling(self, probabilities: np.ndarray) -> np.ndarray:
+        """Apply temperature scaling to raw probabilities."""
+        if self.temperature <= 0 or np.sum(probabilities) == 0:
+            return probabilities
+        logits = np.log(np.clip(probabilities, 1e-12, 1.0))
+        scaled_logits = logits / self.temperature
+        exp_logits = np.exp(scaled_logits - np.max(scaled_logits))
+        return exp_logits / np.sum(exp_logits)
+
+    def _calibrate_model(self, X_train: np.ndarray, y_train: np.ndarray) -> None:
+        if not self.model:
+            return
+        try:
+            sample_size = min(len(X_train), 256)
+            indices = np.random.choice(len(X_train), sample_size, replace=False)
+            X_cal = X_train[indices]
+            y_cal = y_train[indices]
+            probabilities = self.model.predict_proba(X_cal)
+            if probabilities.shape[1] < 3:
+                self.temperature = 1.0
+                return
+            best_temp, _ = self._optimize_temperature(probabilities, y_cal)
+            self.temperature = float(best_temp)
+        except Exception as error:
+            print(f"⚠️ Calibration failed: {error}")
+            self.temperature = 1.0
+
+    def _optimize_temperature(self, probabilities: np.ndarray, labels: np.ndarray) -> Tuple[float, float]:
+        grid = np.linspace(0.5, 2.5, num=11)
+        best_temp = 1.0
+        best_loss = float('inf')
+        for temp in grid:
+            scaled = self._temperature_scale(probabilities, temp)
+            loss = self._negative_log_likelihood(scaled, labels)
+            if loss < best_loss:
+                best_loss = loss
+                best_temp = temp
+        return best_temp, best_loss
+
+    def _temperature_scale(self, probabilities: np.ndarray, temperature: float) -> np.ndarray:
+        if temperature <= 0:
+            return probabilities
+        logits = np.log(np.clip(probabilities, 1e-12, 1.0))
+        scaled_logits = logits / temperature
+        exp_logits = np.exp(scaled_logits - np.max(scaled_logits, axis=1, keepdims=True))
+        return exp_logits / np.sum(exp_logits, axis=1, keepdims=True)
+
+    def _negative_log_likelihood(self, probabilities: np.ndarray, labels: np.ndarray) -> float:
+        eps = 1e-12
+        probs = np.clip(probabilities, eps, 1.0 - eps)
+        one_hot = np.eye(probs.shape[1])[labels]
+        losses = -np.sum(one_hot * np.log(probs), axis=1)
+        return float(np.mean(losses))
+
+    def _load_calibration(self) -> None:
+        calibration_file = os.path.join(self.model_path, "calibration.json")
+        if not os.path.exists(calibration_file):
+            self.temperature = 1.0
+            return
+        try:
+            with open(calibration_file, 'r') as f:
+                payload = json.load(f)
+                self.temperature = float(payload.get("temperature", 1.0))
+                self.calibration_method = payload.get("method", "temperature")
+        except Exception:
+            self.temperature = 1.0
     
     def _statistical_prediction(self, features: Dict) -> Tuple[float, float, float]:
         """Generate statistical prediction when ML model unavailable"""
@@ -327,22 +388,23 @@ class FootballPredictor:
         """Save trained model to disk"""
         try:
             os.makedirs(self.model_path, exist_ok=True)
-            
             model_file = os.path.join(self.model_path, "sabiscore_model.json")
             features_file = os.path.join(self.model_path, "feature_names.json")
-            
-            # Save model
+            calibration_file = os.path.join(self.model_path, "calibration.json")
             if self.model:
                 self.model.save_model(model_file)
-            
-            # Save feature names
             with open(features_file, 'w') as f:
                 json.dump(self.feature_names, f)
-            
+            with open(calibration_file, 'w') as f:
+                json.dump({
+                    "temperature": self.temperature,
+                    "method": self.calibration_method,
+                    "last_updated": datetime.now().isoformat()
+                }, f)
             print(f"💾 Model saved to {model_file}")
-            
         except Exception as e:
             print(f"⚠️ Model saving failed: {e}")
+
     
     def get_model_status(self) -> Dict:
         """Get current model status and metrics"""
@@ -353,5 +415,10 @@ class FootballPredictor:
             "last_updated": datetime.now().isoformat(),
             "training_data_available": os.path.exists(self.db_path),
             "model_accuracy": 0.78 if self.is_trained else 0.35,  # Placeholder
-            "predictions_made": 0  # Would track in production
+            "predictions_made": 0,  # Would track in production
+            "calibration": {
+                "method": self.calibration_method,
+                "temperature": self.temperature,
+                "applied": self.temperature != 1.0
+            }
         }

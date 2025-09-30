@@ -3,10 +3,10 @@
  */
 
 import type { Request, Response, NextFunction } from 'express';
-import logger from './logger';
-import { AppError } from './errorHandler';
-import { auth } from '../config';
-import { validateSession } from '../routers/auth';
+import logger from './logger.js';
+import { AppError } from './errorHandler.js';
+import { auth } from '../config/index.js';
+import { validateSession } from '../routers/auth.js';
 
 interface AuthenticatedRequest extends Request {
   user?: {

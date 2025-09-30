@@ -1,6 +1,7 @@
 import React from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 export function SetupRequiredCard() {
   const [show, setShow] = React.useState(false);
@@ -28,7 +29,10 @@ export function SetupRequiredCard() {
   if (!show) return null;
 
   return (
-    <Card className="border-amber-300/60 bg-amber-50">
+    <Card className={cn(
+      'glass-effect hover-lift smooth-transition border border-amber-300/60 text-amber-900',
+      'bg-amber-50/80'
+    )}>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-amber-900">
           <i className="fas fa-triangle-exclamation" aria-hidden="true"></i>

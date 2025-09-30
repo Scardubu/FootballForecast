@@ -1,14 +1,14 @@
 import express, { Request, Response } from "express";
 import { z } from "zod";
-import { asyncHandler } from "../middleware";
-import { mlClient } from "../lib/ml-client";
+import { asyncHandler } from "../middleware/index.js";
+import { mlClient } from "../lib/ml-client.js";
 import { 
   mlPredictionRequestSchema, 
   mlBatchPredictionRequestSchema,
   mlTrainingRequestSchema,
   type MLPredictionResponse
-} from "@shared/schema";
-import { storage } from "../storage";
+} from "../../shared/schema.js";
+import { storage } from "../storage.js";
 
 export const mlRouter = express.Router();
 
@@ -73,6 +73,12 @@ mlRouter.post("/predict", asyncHandler(async (req: Request, res: Response) => {
           confidence: prediction.confidence.toString(),
           createdAt: new Date(),
           mlModel: prediction.model_version || 'unknown',
+          predictedOutcome: prediction.predicted_outcome,
+          latencyMs: prediction.latency_ms ?? null,
+          serviceLatencyMs: prediction.service_latency_ms ?? null,
+          modelCalibrated: prediction.model_calibrated ?? null,
+          modelTrained: prediction.model_trained ?? null,
+          calibrationMetadata: prediction.calibration ?? null,
         });
         console.log(`💾 Stored prediction for fixture ${prediction.fixture_id} in database`);
       } catch (dbError) {
@@ -133,6 +139,12 @@ mlRouter.post("/predict/batch", asyncHandler(async (req, res) => {
             confidence: prediction.confidence.toString(),
             createdAt: new Date(),
             mlModel: prediction.model_version || 'unknown',
+            predictedOutcome: prediction.predicted_outcome,
+            latencyMs: prediction.latency_ms ?? null,
+            serviceLatencyMs: prediction.service_latency_ms ?? null,
+            modelCalibrated: prediction.model_calibrated ?? null,
+            modelTrained: prediction.model_trained ?? null,
+            calibrationMetadata: prediction.calibration ?? null,
           });
           storedPredictions.push(prediction.fixture_id);
         } catch (dbError) {
@@ -263,6 +275,12 @@ mlRouter.post("/predict/fixture/:fixtureId", asyncHandler(async (req, res) => {
         confidence: prediction.confidence.toString(),
         createdAt: new Date(),
         mlModel: prediction.model_version || 'unknown',
+        predictedOutcome: prediction.predicted_outcome,
+        latencyMs: prediction.latency_ms ?? null,
+        serviceLatencyMs: prediction.service_latency_ms ?? null,
+        modelCalibrated: prediction.model_calibrated ?? null,
+        modelTrained: prediction.model_trained ?? null,
+        calibrationMetadata: prediction.calibration ?? null,
       });
       console.log(`💾 Stored prediction for fixture ${fixtureId} in database`);
     } catch (dbError) {

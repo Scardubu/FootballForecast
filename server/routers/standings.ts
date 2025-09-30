@@ -1,7 +1,7 @@
 import { Router } from "express";
-import { asyncHandler, strictRateLimit } from "../middleware";
-import { storage } from "../storage";
-import { apiFootballClient } from "../services/apiFootballClient";
+import { asyncHandler, strictRateLimit } from "../middleware/index.js";
+import { storage } from "../storage.js";
+import { apiFootballClient } from "../services/apiFootballClient.js";
 
 export const standingsRouter = Router();
 

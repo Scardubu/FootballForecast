@@ -152,21 +152,26 @@ export function usePerformanceMonitor() {
 }
 
 // HOC for measuring component render time
-export function withPerformanceTracking<T extends object>(
-  Component: React.ComponentType<T>,
-  componentName: string
-) {
-  return function PerformanceTrackedComponent(props: T) {
-    React.useEffect(() => {
-      performanceMonitor.startTiming(`render-${componentName}`);
-      return () => {
-        performanceMonitor.endTiming(`render-${componentName}`);
-      };
-    });
-
-    return <Component {...props} />;
-  };
-}
+export const withPerformanceTracking =
+  typeof window !== 'undefined'
+    ? function withPerformanceTracking<T extends object>(
+        Component: React.ComponentType<T>,
+        componentName: string
+      ) {
+        return function PerformanceTrackedComponent(props: T) {
+          React.useEffect(() => {
+            performanceMonitor.startTiming(`render-${componentName}`);
+            return () => {
+              performanceMonitor.endTiming(`render-${componentName}`);
+            };
+          });
+          return React.createElement(
+            Component as unknown as React.ComponentType<any>,
+            props as unknown as any
+          );
+        };
+      }
+    : () => (Comp: any) => Comp;
 
 // Utility for measuring async operations
 export async function measureAsync<T>(

@@ -4,7 +4,7 @@
 
 import rateLimit from 'express-rate-limit';
 import type { Request, Response } from 'express';
-import logger from './logger';
+import logger from './logger.js';
 
 /**
  * General API rate limiter - 100 requests per 15 minutes per IP

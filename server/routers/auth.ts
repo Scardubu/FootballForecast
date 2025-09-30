@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { asyncHandler } from "../middleware";
-import { auth } from "../config";
+import { asyncHandler } from "../middleware/index.js";
+import { auth } from "../config/index.js";
 import { createHash, createHmac } from "crypto";
 
 export const authRouter = Router();

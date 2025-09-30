@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { buildApiUrl, createAbortController } from '@/lib/utils';
 
 export interface User {
   id: string;
@@ -43,21 +44,35 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // Check authentication status and return the result
   const checkAuth = async (): Promise<AuthStatus> => {
     try {
-      const response = await fetch('/api/auth/status', {
-        credentials: 'include'
-      });
-      
-      if (response.ok) {
-        const status = await response.json();
-        setAuth(status);
-        setError(null);
-        return status;
+      try {
+        const { signal, cancel } = createAbortController(3000);
+        const response = await fetch(buildApiUrl('/api/auth/status'), {
+          credentials: 'include',
+          // Add a timeout to prevent hanging requests
+          signal
+        });
+        cancel();
+        
+        if (response.ok) {
+          const status = await response.json();
+          setAuth(status);
+          setError(null);
+          return status;
+        }
+        
+        // Not authenticated
+        const unauthStatus = { authenticated: false, user: null };
+        setAuth(unauthStatus);
+        return unauthStatus;
+      } catch (fetchErr) {
+        // If in development mode and server is not available, use mock auth
+        if (import.meta.env.DEV) {
+          console.warn('Development server not available, using mock authentication status');
+          // Return unauthenticated so login will be attempted
+          return { authenticated: false, user: null };
+        }
+        throw fetchErr;
       }
-      
-      // Not authenticated
-      const unauthStatus = { authenticated: false, user: null };
-      setAuth(unauthStatus);
-      return unauthStatus;
     } catch (err) {
       console.error('Auth check failed:', err);
       setError('Failed to check authentication status');
@@ -71,21 +86,38 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const login = async () => {
     try {
       setError(null);
-      const response = await fetch('/api/auth/dev-login', {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json'
+      try {
+        const { signal, cancel } = createAbortController(3000);
+        const response = await fetch(buildApiUrl('/api/auth/dev-login'), {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          // Add a timeout to prevent hanging requests
+          signal
+        });
+        cancel();
+        
+        if (response.ok) {
+          await checkAuth(); // Refresh auth status
+          return;
         }
-      });
-      
-      if (response.ok) {
-        await checkAuth(); // Refresh auth status
-        return;
+        
+        const errorData = await response.json().catch(() => ({ message: 'Login failed' }));
+        throw new Error(errorData.message || 'Login failed');
+      } catch (fetchErr) {
+        // If server is not running, create a mock development user
+        if (import.meta.env.DEV) {
+          console.warn('Development server not available, using mock authentication');
+          setAuth({
+            authenticated: true,
+            user: { id: 'dev-user', type: 'developer' }
+          });
+          return;
+        }
+        throw fetchErr;
       }
-      
-      const errorData = await response.json().catch(() => ({ message: 'Login failed' }));
-      throw new Error(errorData.message || 'Login failed');
     } catch (err) {
       console.error('Login failed:', err);
       setError(err instanceof Error ? err.message : 'Login failed');
@@ -97,7 +129,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const logout = async () => {
     try {
       setError(null);
-      const response = await fetch('/api/auth/logout', {
+      const response = await fetch(buildApiUrl('/api/auth/logout'), {
         method: 'POST',
         credentials: 'include'
       });

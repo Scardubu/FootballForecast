@@ -1,10 +1,99 @@
 import { Router } from "express";
-import { asyncHandler, logger } from "../middleware";
-import { storage } from "../storage";
-import { mlClient } from "../lib/ml-client";
-import type { Prediction } from "@shared/schema";
+import crypto from "crypto";
+import { asyncHandler, logger } from "../middleware/index.js";
+import { storage } from "../storage.js";
+import { mlClient } from "../lib/ml-client.js";
+import { beginIngestionEvent, completeIngestionEvent, failIngestionEvent, computeChecksum } from "../lib/ingestion-tracker.js";
+import type { Prediction } from "../../shared/schema.js";
 
 export const predictionsRouter = Router();
+
+// Bulk telemetry lookup for multiple fixtures
+predictionsRouter.get("/telemetry", asyncHandler(async (req, res) => {
+  const fixtureIdsParam = req.query.fixtureIds;
+
+  let fixtureIds: number[] | undefined;
+  if (typeof fixtureIdsParam === "string") {
+    fixtureIds = fixtureIdsParam
+      .split(",")
+      .map((id) => parseInt(id.trim(), 10))
+      .filter((id) => !isNaN(id));
+  } else if (Array.isArray(fixtureIdsParam)) {
+    fixtureIds = fixtureIdsParam
+      .map((value) => {
+        const raw = typeof value === "string" ? value : String(value);
+        const parsed = parseInt(raw.trim(), 10);
+        return Number.isNaN(parsed) ? undefined : parsed;
+      })
+      .filter((id): id is number => typeof id === "number");
+  }
+
+  const predictionsByFixture = new Map<number, Prediction>();
+
+  const toDate = (value: unknown): Date | undefined => {
+    if (value instanceof Date) return value;
+    if (value == null) return undefined;
+    if (typeof value === 'string' || typeof value === 'number') {
+      const parsed = new Date(value);
+      return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+    }
+    return undefined;
+  };
+
+  const collectLatestPrediction = (predictionList: Prediction[]) => {
+    for (const prediction of predictionList) {
+      if (prediction.fixtureId === null || prediction.fixtureId === undefined) {
+        continue;
+      }
+
+      const existing = predictionsByFixture.get(prediction.fixtureId);
+      if (!existing) {
+        predictionsByFixture.set(prediction.fixtureId, prediction);
+        continue;
+      }
+
+      const createdAtDate = toDate(prediction.createdAt);
+      if (!createdAtDate) {
+        continue;
+      }
+
+      const existingDate = toDate(existing.createdAt);
+      if (!existingDate || createdAtDate > existingDate) {
+        predictionsByFixture.set(prediction.fixtureId, prediction);
+      }
+    }
+  };
+
+  if (fixtureIds && fixtureIds.length > 0) {
+    const predictionLists = await Promise.all(
+      fixtureIds.map((fixtureId) => storage.getPredictions(fixtureId))
+    );
+    predictionLists.forEach(collectLatestPrediction);
+  } else {
+    const allPredictions = await storage.getPredictions();
+    collectLatestPrediction(allPredictions);
+  }
+
+  const telemetryMap: Record<number, Prediction> = {};
+  predictionsByFixture.forEach((prediction, fixtureId) => {
+    telemetryMap[fixtureId] = prediction;
+  });
+
+  const body = JSON.stringify(telemetryMap);
+  const hashHex = crypto.createHash('sha1').update(body).digest('hex');
+  let etagNumeric: string;
+  try {
+    etagNumeric = BigInt('0x' + hashHex).toString(10);
+  } catch (error) {
+    logger.warn({ error, hashHex }, 'Failed to convert telemetry hash to numeric ETag; falling back to timestamp');
+    etagNumeric = Date.now().toString();
+  }
+  const etag = `"telemetry-${etagNumeric}"`;
+  res.setHeader('Cache-Control', 'public, max-age=300');
+  res.setHeader('ETag', etag);
+  logger.info(`Telemetry request served: ${Object.keys(telemetryMap).length} fixtures`);
+  res.type('application/json').send(body);
+}));
 
 // Get prediction for a single fixture by ID
 predictionsRouter.get("/:fixtureId", asyncHandler(async (req, res) => {
@@ -18,7 +107,11 @@ predictionsRouter.get("/:fixtureId", asyncHandler(async (req, res) => {
   if (existingPredictions.length > 0) {
     const recentPrediction = existingPredictions[0];
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-    if (new Date(recentPrediction.createdAt) > fiveMinutesAgo) {
+    // Handle createdAt which could be Date or string from database
+    const predictionDate = typeof recentPrediction.createdAt === 'string' 
+      ? new Date(recentPrediction.createdAt) 
+      : recentPrediction.createdAt;
+    if (predictionDate && predictionDate > fiveMinutesAgo) {
       logger.info(`Returning cached prediction for fixture ${fixtureId}`);
       return res.json(recentPrediction);
     }
@@ -54,7 +147,7 @@ predictionsRouter.get("/:fixtureId", asyncHandler(async (req, res) => {
     }
   }
 
-  // 5. Transform the ML response and save it to storage
+  // 5. Transform the ML response and save it to storage with provenance
   const newPrediction: Prediction = {
     id: `pred-${fixture.id}-${Date.now()}`,
     fixtureId: fixture.id,
@@ -68,11 +161,34 @@ predictionsRouter.get("/:fixtureId", asyncHandler(async (req, res) => {
     confidence: String(mlResponse.confidence * 100),
     createdAt: new Date(),
     mlModel: mlResponse.model_version,
-    explanation: mlResponse.explanation || 'No explanation provided.',
+    predictedOutcome: mlResponse.predicted_outcome,
+    latencyMs: mlResponse.latency_ms ?? null,
+    serviceLatencyMs: mlResponse.service_latency_ms ?? null,
+    modelCalibrated: mlResponse.model_calibrated ?? null,
+    modelTrained: mlResponse.model_trained ?? null,
+    calibrationMetadata: mlResponse.calibration ?? null,
+    // aiInsight is not stored in DB, but included at runtime for richer UI
+    aiInsight: mlResponse.explanation ?? undefined
   };
 
-  await storage.updatePrediction(newPrediction);
-  logger.info(`Saved new prediction for fixture ${fixtureId}`);
+  // Ingestion provenance tracking
+  const ctx = await beginIngestionEvent({
+    source: 'ml_service',
+    scope: `prediction:${fixtureId}`,
+    metadata: { fixtureId }
+  });
+  try {
+    await storage.updatePrediction(newPrediction);
+    await completeIngestionEvent(ctx, {
+      recordsWritten: 1,
+      metadata: { mlModel: newPrediction.mlModel },
+      checksum: computeChecksum(newPrediction)
+    });
+    logger.info(`Saved new prediction for fixture ${fixtureId}`);
+  } catch (err) {
+    await failIngestionEvent(ctx, err, { recordsWritten: 0 });
+    throw err;
+  }
 
   // 6. Return the new prediction
   res.json(newPrediction);

@@ -8,8 +8,11 @@ import {
   type Standing,
   type TeamStats,
   type ScrapedData,
-  type InsertScrapedData
-} from "@shared/schema";
+  type InsertScrapedData,
+  type IngestionEvent,
+  type InsertIngestionEvent,
+  type UpdateIngestionEvent
+} from "../shared/schema.js";
 import { randomUUID } from "crypto";
 
 export interface IStorage {
@@ -47,6 +50,12 @@ export interface IStorage {
   createScrapedData(data: InsertScrapedData): Promise<ScrapedData>;
   getScrapedData(source?: string, dataType?: string, fixtureId?: number, teamId?: number): Promise<ScrapedData[]>;
   getLatestScrapedData(source: string, dataType: string): Promise<ScrapedData | undefined>;
+
+  // Ingestion events
+  createIngestionEvent(event: InsertIngestionEvent): Promise<IngestionEvent>;
+  updateIngestionEvent(id: string, update: UpdateIngestionEvent): Promise<IngestionEvent | undefined>;
+  getIngestionEvent(id: string): Promise<IngestionEvent | undefined>;
+  getRecentIngestionEvents(limit?: number): Promise<IngestionEvent[]>;
 }
 
 export class MemStorage implements IStorage {
@@ -58,6 +67,7 @@ export class MemStorage implements IStorage {
   private standings: Map<string, Standing>;
   private teamStats: Map<string, TeamStats>;
   private scrapedData: Map<string, ScrapedData>;
+  private ingestionEvents: Map<string, IngestionEvent>;
 
   constructor() {
     this.users = new Map();
@@ -68,6 +78,7 @@ export class MemStorage implements IStorage {
     this.standings = new Map();
     this.teamStats = new Map();
     this.scrapedData = new Map();
+    this.ingestionEvents = new Map();
   }
 
   async getUser(id: string): Promise<User | undefined> {
@@ -227,16 +238,100 @@ export class MemStorage implements IStorage {
       .filter(data => data.source === source && data.dataType === dataType)
       .sort((a, b) => new Date(b.scrapedAt).getTime() - new Date(a.scrapedAt).getTime())[0];
   }
+
+  async createIngestionEvent(event: InsertIngestionEvent): Promise<IngestionEvent> {
+    const id = randomUUID();
+    const startedAt = event.startedAt ?? new Date();
+    const dedupeKey = event.dedupeKey ?? `${event.source}:${event.scope}:${startedAt.toISOString()}`;
+    const ingestionEvent: IngestionEvent = {
+      id,
+      source: event.source,
+      scope: event.scope,
+      status: event.status ?? "running",
+      startedAt,
+      finishedAt: event.finishedAt ?? null,
+      durationMs: event.durationMs ?? null,
+      recordsWritten: event.recordsWritten ?? null,
+      fallbackUsed: event.fallbackUsed ?? false,
+      checksum: event.checksum ?? null,
+      metadata: event.metadata ?? null,
+      error: event.error ?? null,
+      dedupeKey,
+      retryCount: event.retryCount ?? 0,
+      lastErrorAt: event.lastErrorAt ?? null,
+      metrics: event.metrics ?? null,
+      updatedAt: event.updatedAt ?? startedAt
+    } as IngestionEvent;
+
+    this.ingestionEvents.set(id, ingestionEvent);
+    return ingestionEvent;
+  }
+
+  async updateIngestionEvent(id: string, update: UpdateIngestionEvent): Promise<IngestionEvent | undefined> {
+    const existing = this.ingestionEvents.get(id);
+    if (!existing) {
+      return undefined;
+    }
+
+    const mergedMetadata = update.metadata
+      ? {
+          ...(existing.metadata as Record<string, unknown> | null || {}),
+          ...update.metadata
+        }
+      : existing.metadata;
+
+    const updated: IngestionEvent = {
+      ...existing,
+      ...(update.status !== undefined ? { status: update.status } : {}),
+      ...(update.startedAt !== undefined ? { startedAt: update.startedAt } : {}),
+      ...(update.finishedAt !== undefined ? { finishedAt: update.finishedAt } : {}),
+      ...(update.durationMs !== undefined ? { durationMs: update.durationMs } : {}),
+      ...(update.recordsWritten !== undefined ? { recordsWritten: update.recordsWritten } : {}),
+      ...(update.fallbackUsed !== undefined ? { fallbackUsed: update.fallbackUsed } : {}),
+      ...(update.checksum !== undefined ? { checksum: update.checksum } : {}),
+      metadata: mergedMetadata,
+      ...(update.error !== undefined ? { error: update.error } : {}),
+      ...(update.retryCount !== undefined ? { retryCount: update.retryCount } : {}),
+      ...(update.lastErrorAt !== undefined ? { lastErrorAt: update.lastErrorAt } : {}),
+      ...(update.metrics !== undefined ? { metrics: update.metrics } : {}),
+      updatedAt: update.updatedAt ?? new Date()
+    } as IngestionEvent;
+
+    this.ingestionEvents.set(id, updated);
+    return updated;
+  }
+
+  async getIngestionEvent(id: string): Promise<IngestionEvent | undefined> {
+    return this.ingestionEvents.get(id);
+  }
+
+  async getRecentIngestionEvents(limit: number = 20): Promise<IngestionEvent[]> {
+    return Array.from(this.ingestionEvents.values())
+      .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime())
+      .slice(0, limit);
+  }
 }
 
-import { DatabaseStorage } from "./db-storage";
+import { DatabaseStorage } from "./db-storage.js";
 
 // Use database storage when available, memory storage as fallback
-const isProduction = process.env.NODE_ENV === 'production';
-const hasDatabase = !!process.env.DATABASE_URL && isProduction;
+const databaseUrl = process.env.DATABASE_URL?.trim();
+const disableDatabase = (process.env.DISABLE_DATABASE_STORAGE || '').toLowerCase() === 'true';
+const usingDatabase = !!databaseUrl && !disableDatabase;
 
-export const storage: IStorage = hasDatabase 
-  ? new DatabaseStorage() 
-  : new MemStorage();
+let storage: IStorage;
 
-console.log(`Using ${hasDatabase ? 'Database' : 'Memory'} storage`);
+if (usingDatabase) {
+  try {
+    storage = new DatabaseStorage();
+    console.log('Using Database storage');
+  } catch (error) {
+    console.warn('Failed to initialize Database storage, falling back to Memory storage:', (error as Error).message);
+    storage = new MemStorage();
+  }
+} else {
+  storage = new MemStorage();
+  console.log('Using Memory storage (no DATABASE_URL or explicitly disabled)');
+}
+
+export { storage };

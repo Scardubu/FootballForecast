@@ -1,8 +1,9 @@
 import { Router } from "express";
-import { asyncHandler } from "../middleware";
-import { storage } from "../storage";
+import { asyncHandler } from "../middleware/index.js";
+import { storage } from "../storage.js";
 import { z } from "zod";
-import { auth } from "../config";
+import { auth } from "../config/index.js";
+import { insertScrapedDataSchema } from "../../shared/schema.js";
 
 export const scrapedDataRouter = Router();
 
@@ -28,9 +29,6 @@ scrapedDataRouter.post("/", asyncHandler(async (req, res) => {
     res.setHeader('WWW-Authenticate', 'Bearer');
     return res.status(401).json({ error: "Unauthorized - Invalid auth token" });
   }
-  
-  // Import validation schema dynamically to avoid circular dependencies
-  const { insertScrapedDataSchema } = await import("../../shared/schema.ts");
   
   // Validate request body with Zod
   const validation = insertScrapedDataSchema.safeParse({

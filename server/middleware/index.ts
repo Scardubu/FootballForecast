@@ -23,6 +23,7 @@ export {
   resetPerformanceMetrics,
   getMemoryUsage
 } from './performance';
+export { securityHeaders } from './security';
 export {
   errorHandler,
   notFoundHandler,

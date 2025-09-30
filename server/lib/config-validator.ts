@@ -5,7 +5,7 @@
  * environment variables required for production deployment.
  */
 
-import { logger } from '../middleware/logger';
+import { logger } from '../middleware/logger.js';
 
 export interface ValidationResult {
   valid: boolean;
@@ -125,35 +125,38 @@ export function validateEnvironmentConfig(options: ConfigValidationOptions = {})
   // API Keys
   const apiKeyResult = validateEnvVar('API_FOOTBALL_KEY', process.env.API_FOOTBALL_KEY, {
     required: isProduction,
-    minLength: 10,
+    minLength: isProduction ? 10 : 5, // More lenient in development
     description: 'API key from RapidAPI for API-Football service',
     example: 'your-rapidapi-key-here',
     suggestions: [
       'Get your API key from https://rapidapi.com/api-sports/api/api-football',
-      'Ensure you have an active subscription with sufficient quota'
+      'Ensure you have an active subscription with sufficient quota',
+      'For development, any non-empty value is accepted'
     ]
   });
 
   // Authentication Tokens
   const bearerTokenResult = validateEnvVar('API_BEARER_TOKEN', process.env.API_BEARER_TOKEN, {
     required: isProduction,
-    minLength: 20,
+    minLength: isProduction ? 20 : 5, // More lenient in development
     description: 'Secure token for API authentication',
     example: 'generated-secure-token-32-chars-long',
     suggestions: [
       'Generate with: openssl rand -hex 32',
-      'Use a cryptographically secure random generator'
+      'Use a cryptographically secure random generator',
+      'For development, any non-empty value is accepted'
     ]
   });
 
   const scraperTokenResult = validateEnvVar('SCRAPER_AUTH_TOKEN', process.env.SCRAPER_AUTH_TOKEN, {
     required: isProduction,
-    minLength: 20,
+    minLength: isProduction ? 20 : 5, // More lenient in development
     description: 'Authentication token for web scraping services',
     example: 'another-secure-token-32-chars-long',
     suggestions: [
       'Generate with: openssl rand -hex 32',
-      'Should be different from API_BEARER_TOKEN'
+      'Should be different from API_BEARER_TOKEN',
+      'For development, any non-empty value is accepted'
     ]
   });
 
@@ -172,12 +175,13 @@ export function validateEnvironmentConfig(options: ConfigValidationOptions = {})
   // Session Configuration
   const sessionSecretResult = validateEnvVar('SESSION_SECRET', process.env.SESSION_SECRET, {
     required: isProduction,
-    minLength: 32,
+    minLength: isProduction ? 32 : 5, // More lenient in development
     description: 'Secret key for session encryption',
     example: 'very-long-random-string-for-session-security',
     suggestions: [
       'Generate with: openssl rand -base64 48',
-      'Keep this secret secure and rotate regularly'
+      'Keep this secret secure and rotate regularly',
+      'For development, any non-empty value is accepted'
     ]
   });
 
@@ -292,7 +296,22 @@ export function validateConfigOrExit(options: ConfigValidationOptions = {}) {
   const result = validateEnvironmentConfig(options);
   logValidationResults(result, options);
 
+  const { environment = process.env.NODE_ENV as any || 'development' } = options;
+  const isProduction = environment === 'production';
+
   if (!result.valid) {
+    // In development mode, only exit if there are no environment variables at all
+    if (!isProduction) {
+      const criticalVars = ['API_FOOTBALL_KEY', 'API_BEARER_TOKEN', 'SCRAPER_AUTH_TOKEN'];
+      const hasSomeVars = criticalVars.some(key => process.env[key] && process.env[key]?.trim() !== '');
+      
+      if (hasSomeVars) {
+        logger.warn('⚠️ Running with incomplete configuration in development mode');
+        logger.warn('⚠️ Some features may not work correctly');
+        return result;
+      }
+    }
+    
     logger.error('💥 Cannot start application due to configuration errors');
     process.exit(1);
   }

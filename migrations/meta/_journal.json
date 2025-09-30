@@ -8,6 +8,13 @@
       "when": 1758680175111,
       "tag": "0000_right_queen_noir",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1759095213000,
+      "tag": "0001_add_ml_metadata_to_predictions",
+      "breakpoints": false
     }
   ]
 }

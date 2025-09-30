@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { MatchTeamsDisplay } from "@/components/team-display";
 import { PredictionCardSkeleton } from "@/components/loading";
@@ -22,12 +23,24 @@ export function PredictionCard({ fixture, homeTeam, awayTeam }: PredictionCardPr
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
 
+  const latency = prediction?.latencyMs ?? prediction?.serviceLatencyMs ?? null;
+  const calibration = (prediction?.calibrationMetadata || undefined) as {
+    method?: string;
+    temperature?: number;
+    applied?: boolean;
+  } | undefined;
+  const predictedOutcomeLabel = prediction?.predictedOutcome?.toUpperCase() ?? null;
+  const calibrationTemperature = typeof calibration?.temperature === "number"
+    ? calibration.temperature.toFixed(2)
+    : undefined;
+  const calibrationApplied = calibration?.applied ?? calibration?.applied === undefined ? true : calibration.applied;
+
   if (isLoading) return <PredictionCardSkeleton />;
   if (error) {
     // Render a disabled/error state for this specific card
     return (
-      <Card className="hover-lift smooth-transition animate-fade-in opacity-50">
-        <CardContent className="p-6 text-center">
+      <Card className="glass-effect hover-lift smooth-transition animate-fade-in opacity-50">
+        <CardContent className="px-6 py-8 text-center">
           <div className="text-sm text-muted-foreground">Could not load prediction.</div>
         </CardContent>
       </Card>
@@ -35,8 +48,8 @@ export function PredictionCard({ fixture, homeTeam, awayTeam }: PredictionCardPr
   }
 
   return (
-    <Card key={fixture.id} className="hover-lift smooth-transition animate-fade-in" data-testid={`prediction-card-${fixture.id}`}>
-      <CardContent className="p-6">
+    <Card key={fixture.id} className="glass-effect hover-lift smooth-transition animate-fade-in" data-testid={`prediction-card-${fixture.id}`}>
+      <CardContent className="px-6 py-8">
         <div className="flex items-center justify-between mb-4">
           <MatchTeamsDisplay
             homeTeam={homeTeam}
@@ -48,6 +61,24 @@ export function PredictionCard({ fixture, homeTeam, awayTeam }: PredictionCardPr
           <span className="text-sm text-muted-foreground" data-testid={`prediction-date-${fixture.id}`}>
             {new Date(fixture.date).toLocaleDateString()}
           </span>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 mb-6">
+          {predictedOutcomeLabel && (
+            <Badge variant="secondary" className="uppercase tracking-wide text-xs" data-testid={`predicted-outcome-${fixture.id}`}>
+              {predictedOutcomeLabel}
+            </Badge>
+          )}
+          {prediction?.modelCalibrated !== undefined && (
+            <Badge variant={prediction.modelCalibrated ? "outline" : "destructive"} className="text-xs">
+              Calibration {prediction.modelCalibrated ? "Active" : "Bypassed"}
+            </Badge>
+          )}
+          {prediction?.modelTrained !== undefined && (
+            <Badge variant={prediction.modelTrained ? "default" : "outline"} className="text-xs">
+              {prediction.modelTrained ? "Production Model" : "Fallback Model"}
+            </Badge>
+          )}
         </div>
         
         <div className="grid grid-cols-3 gap-4 mb-6">
@@ -93,7 +124,7 @@ export function PredictionCard({ fixture, homeTeam, awayTeam }: PredictionCardPr
         </div>
         
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
             <span className="text-sm font-medium">AI Confidence</span>
             <div className="flex items-center space-x-2">
               <div className="w-24 h-2 bg-muted rounded-full overflow-hidden">
@@ -116,7 +147,32 @@ export function PredictionCard({ fixture, homeTeam, awayTeam }: PredictionCardPr
               </Tooltip>
             </div>
           </div>
-          
+
+          {(latency !== null || calibration) && (
+            <div className="grid grid-cols-1 gap-2 text-xs text-muted-foreground bg-muted/40 rounded-lg p-3">
+              {latency !== null && (
+                <div className="flex items-center space-x-2" data-testid={`latency-${fixture.id}`}>
+                  <i className="fas fa-stopwatch" aria-hidden />
+                  <span>
+                    Latency: <span className="font-medium text-foreground">{latency} ms</span>
+                  </span>
+                </div>
+              )}
+              {calibration && (
+                <div className="flex items-center space-x-2" data-testid={`calibration-${fixture.id}`}>
+                  <i className="fas fa-balance-scale" aria-hidden />
+                  <span>
+                    Calibration {calibrationApplied ? "applied" : "ready"}
+                    {calibration.method && ` • ${calibration.method}`}
+                    {calibrationTemperature && (
+                      <span className="ml-1">(T={calibrationTemperature})</span>
+                    )}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-4 text-sm">
             <Tooltip>
               <TooltipTrigger>
@@ -134,44 +190,20 @@ export function PredictionCard({ fixture, homeTeam, awayTeam }: PredictionCardPr
             <Tooltip>
               <TooltipTrigger>
                 <div className="flex justify-between cursor-help">
-                  <span className="text-muted-foreground">Both Teams Score</span>
-                  <span className="font-medium text-success" data-testid={`both-teams-score-${fixture.id}`}>
-                    {prediction?.bothTeamsScore || "--"}%
-                  </span>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Probability both teams will score based on attacking/defensive patterns</p>
-              </TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger>
-                <div className="flex justify-between cursor-help">
-                  <span className="text-muted-foreground">Over 2.5 Goals</span>
-                  <span className="font-medium text-secondary" data-testid={`over-25-goals-${fixture.id}`}>
-                    {prediction?.over25Goals || "--"}%
-                  </span>
-                </div>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Likelihood of 3+ goals based on team attacking trends</p>
-              </TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger>
-                <div className="flex justify-between cursor-help">
                   <span className="text-muted-foreground">Model Version</span>
-                  <span className="font-medium text-accent text-xs">
-                    v1.0
+                  <span className="font-medium text-accent text-xs" data-testid={`model-version-${fixture.id}`}>
+                    {prediction?.mlModel || "N/A"}
                   </span>
                 </div>
               </TooltipTrigger>
               <TooltipContent>
-                <p>ML model version: XGBoost with calibrated probabilities</p>
+                <p>
+                  Model provenance and configuration applied for this prediction.
+                </p>
               </TooltipContent>
             </Tooltip>
           </div>
-          
+
           <div className="mt-4 p-3 bg-accent/10 rounded-lg border border-accent/20">
             <div className="flex items-start space-x-2">
               <i className="fas fa-lightbulb text-accent mt-0.5"></i>

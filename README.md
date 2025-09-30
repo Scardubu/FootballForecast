@@ -386,14 +386,54 @@ curl -i http://localhost:8888/.netlify/functions/api/health
 ### Run Tests
 
 ```bash
-# Node.js tests
+# All tests
 npm test
+
+# Client-side tests (React components, hooks)
+npm run test:client
+
+# Server-side tests (API endpoints, routers)
+npm run test:server
 
 # Python tests
 cd src && python -m pytest
 
 # E2E tests
 npm run test:e2e
+```
+
+#### Telemetry Testing
+
+The application includes comprehensive telemetry testing utilities:
+ 
+**Mock Data Generation:**
+
+```typescript
+import { createMockTelemetryMap, MOCK_TELEMETRY_SCENARIOS } from '@/lib/telemetry-test-utils';
+
+// Create deterministic test data
+const telemetry = createMockTelemetryMap([1001, 1002, 1003]);
+
+// Use pre-built scenarios
+const highLatency = MOCK_TELEMETRY_SCENARIOS.highLatency;
+const allCalibrated = MOCK_TELEMETRY_SCENARIOS.allCalibrated;
+```
+
+**Offline Mode Testing:**
+Use browser console commands for manual testing:
+
+```javascript
+// Enable offline mode
+window.offlineTest.goOffline();
+
+// Restore online mode
+window.offlineTest.goOnline();
+
+// Toggle between modes
+window.offlineTest.toggle();
+
+// Run comprehensive test
+window.offlineTest.test();
 ```
 
 ### Manual Testing
@@ -525,13 +565,47 @@ python -m debugpy --listen 5678 src/api/main.py
 ### Node.js API Endpoints
 
 ```http
-GET    /api/health              # Health check
-GET    /api/leagues             # Get all leagues
-GET    /api/fixtures            # Get fixtures
-GET    /api/predictions         # Get predictions
-POST   /api/auth/login          # User login
-POST   /api/auth/register       # User registration
+GET    /api/health                    # Health check
+GET    /api/leagues                   # Get all leagues
+GET    /api/fixtures                  # Get fixtures
+GET    /api/predictions/:fixtureId    # Get prediction for specific fixture
+GET    /api/predictions/telemetry     # Get aggregated ML telemetry
+POST   /api/auth/login                # User login
+POST   /api/auth/register             # User registration
 ```
+
+#### Telemetry Endpoint Details
+
+**`GET /api/predictions/telemetry`**
+
+Provides aggregated ML model performance data for monitoring and debugging.
+
+**Query Parameters:**
+
+- `fixtureIds` (optional): Comma-separated list of fixture IDs to filter results
+
+**Response Format:**
+```json
+{
+  "1001": {
+    "id": "pred-1001-123456789",
+    "fixtureId": 1001,
+    "latencyMs": 250,
+    "serviceLatencyMs": 45,
+    "modelCalibrated": true,
+    "calibrationMetadata": {
+      "method": "temperature-scaling",
+      "temperature": 1.05,
+      "applied": true
+    },
+    "mlModel": "xgboost-v2.1",
+    "predictedOutcome": "home",
+    "createdAt": "2023-12-01T10:30:00Z"
+  }
+}
+```
+
+**Caching:** Responses are cached for 5 minutes with appropriate ETags.
 
 ### Python ML API
 
@@ -584,6 +658,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 
 ### Accessibility (WCAG 2.1 AA)
+
 - **Screen Reader Support**: ARIA labels, semantic HTML, live regions
 - **Keyboard Navigation**: Full keyboard accessibility with focus management
 - **High Contrast**: Support for high contrast and reduced motion preferences
@@ -591,10 +666,38 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 
 ### Performance Optimizations
+
 - **Lazy Loading**: Code splitting for heavy components
 - **Error Boundaries**: Graceful error handling at component level
 - **Loading States**: Skeleton screens and progressive loading
 - **Bundle Optimization**: Tree shaking and dynamic imports
+- **Telemetry Monitoring**: Real-time ML model performance tracking
+
+### Production Telemetry
+
+The application provides comprehensive ML model monitoring:
+
+**UI Indicators:**
+
+- Header badge shows real-time calibration rate and average latency
+- Dashboard stats display fixtures analyzed, calibration adoption, and fallback count
+- Quick stats component provides detailed ML health metrics
+- Team performance cards include telemetry status
+
+**Validation Checklist:**
+
+- [ ] Telemetry endpoint responds within 500ms
+- [ ] Calibration rate above 80% for production models
+- [ ] Average latency below 300ms
+- [ ] Fallback predictions below 10% of total
+- [ ] All UI components display telemetry without errors
+- [ ] Offline mode gracefully handles telemetry failures
+
+**Troubleshooting:**
+- **High latency (>1s)**: Check ML service performance and network connectivity
+- **Low calibration rate (<70%)**: Verify model training pipeline and calibration settings
+- **High fallback usage (>20%)**: Investigate ML service availability and error rates
+- **Missing telemetry**: Ensure `/api/predictions/telemetry` endpoint is accessible
 
 
 ### Developer Experience

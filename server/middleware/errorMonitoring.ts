@@ -3,7 +3,7 @@
  * Centralizes error tracking, logging, and reporting for the application
  */
 
-import logger from './logger';
+import logger from './logger.js';
 
 // Error severity levels
 export enum ErrorSeverity {
@@ -84,10 +84,13 @@ export function reportError(
       break;
   }
   
-  // In production, you could send to external monitoring service here
+  // In production, send to external monitoring service
   if (process.env.NODE_ENV === 'production') {
-    // Example: sendToErrorMonitoring(report);
+    sendToProductionMonitoring(report);
   }
+  
+  // Store error for analytics (in-memory for now, could be database)
+  storeErrorForAnalytics(report);
   
   return report;
 }
@@ -136,15 +139,105 @@ export function createMonitoredFunction<T extends (...args: any[]) => Promise<an
   }) as T;
 }
 
+// In-memory error storage for analytics (in production, use database)
+const errorStore: ErrorReport[] = [];
+const MAX_STORED_ERRORS = 1000;
+
+/**
+ * Send error to production monitoring service
+ */
+function sendToProductionMonitoring(report: ErrorReport): void {
+  try {
+    // In production, integrate with services like:
+    // - Sentry: Sentry.captureException(error)
+    // - Datadog: DD.logger.error(report)
+    // - New Relic: newrelic.recordCustomEvent('Error', report)
+    // - Custom webhook endpoint
+    
+    if (process.env.ERROR_WEBHOOK_URL) {
+      fetch(process.env.ERROR_WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(report)
+      }).catch(err => {
+        logger.error({ err }, 'Failed to send error to monitoring service');
+      });
+    }
+    
+    // Log to Netlify Functions logs (visible in Netlify dashboard)
+    if (process.env.NETLIFY) {
+      console.error('PRODUCTION_ERROR:', JSON.stringify(report, null, 2));
+    }
+  } catch (err) {
+    logger.error({ err }, 'Error in production monitoring');
+  }
+}
+
+/**
+ * Store error for local analytics
+ */
+function storeErrorForAnalytics(report: ErrorReport): void {
+  try {
+    errorStore.push(report);
+    
+    // Keep only the most recent errors
+    if (errorStore.length > MAX_STORED_ERRORS) {
+      errorStore.splice(0, errorStore.length - MAX_STORED_ERRORS);
+    }
+  } catch (err) {
+    logger.error({ err }, 'Failed to store error for analytics');
+  }
+}
+
 /**
  * Get application-wide error statistics
  */
 export function getErrorStats() {
-  // In a real app, this would return actual error stats from storage
+  const now = new Date();
+  const last24Hours = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const last7Days = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  
+  const recentErrors = errorStore.filter(error => 
+    new Date(error.timestamp) > last24Hours
+  );
+  
+  const weeklyErrors = errorStore.filter(error => 
+    new Date(error.timestamp) > last7Days
+  );
+  
+  const categoryCounts = errorStore.reduce((acc, error) => {
+    acc[error.category] = (acc[error.category] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+  
+  const severityCounts = errorStore.reduce((acc, error) => {
+    acc[error.severity] = (acc[error.severity] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+  
   return {
-    totalErrors: 0,
-    criticalErrors: 0,
-    highSeverityErrors: 0,
-    categories: {}
+    totalErrors: errorStore.length,
+    recentErrors: recentErrors.length,
+    weeklyErrors: weeklyErrors.length,
+    criticalErrors: severityCounts[ErrorSeverity.CRITICAL] || 0,
+    highSeverityErrors: severityCounts[ErrorSeverity.HIGH] || 0,
+    categories: categoryCounts,
+    severityBreakdown: severityCounts,
+    errorRate: weeklyErrors.length / 7, // errors per day
+    lastError: errorStore.length > 0 ? errorStore[errorStore.length - 1] : null
   };
+}
+
+/**
+ * Get recent errors for debugging
+ */
+export function getRecentErrors(limit: number = 50): ErrorReport[] {
+  return errorStore.slice(-limit).reverse(); // Most recent first
+}
+
+/**
+ * Clear error store (for testing or maintenance)
+ */
+export function clearErrorStore(): void {
+  errorStore.length = 0;
 }

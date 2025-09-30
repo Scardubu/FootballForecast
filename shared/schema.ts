@@ -53,6 +53,30 @@ export const fixtures = pgTable("fixtures", {
   fixturesDateIdx: index("fixtures_date_idx").on(table.date),
 }));
 
+export const ingestionEvents = pgTable("ingestion_events", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  source: text("source").notNull(),
+  scope: text("scope").notNull(),
+  status: text("status").notNull().default("pending"),
+  startedAt: timestamp("started_at", { withTimezone: false }).default(sql`now()`).notNull(),
+  finishedAt: timestamp("finished_at", { withTimezone: false }),
+  durationMs: integer("duration_ms"),
+  recordsWritten: integer("records_written"),
+  fallbackUsed: boolean("fallback_used").notNull().default(false),
+  checksum: text("checksum"),
+  metadata: jsonb("metadata"),
+  error: text("error"),
+  dedupeKey: text("dedupe_key").notNull(),
+  retryCount: integer("retry_count").notNull().default(0),
+  lastErrorAt: timestamp("last_error_at", { withTimezone: false }),
+  metrics: jsonb("metrics"),
+  updatedAt: timestamp("updated_at", { withTimezone: false }).default(sql`now()`).notNull()
+}, (table) => ({
+  ingestionEventsStatusIdx: index("ingestion_events_status_idx").on(table.status),
+  ingestionEventsStartedIdx: index("ingestion_events_started_idx").on(table.startedAt),
+  ingestionEventsDedupeIdx: unique("ingestion_events_dedupe_idx").on(table.dedupeKey)
+}));
+
 export const predictions = pgTable("predictions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   fixtureId: integer("fixture_id").references(() => fixtures.id),
@@ -65,6 +89,12 @@ export const predictions = pgTable("predictions", {
   over25Goals: decimal("over_25_goals", { precision: 5, scale: 2 }),
   confidence: decimal("confidence", { precision: 5, scale: 2 }),
   mlModel: text("ml_model"),
+  predictedOutcome: text("predicted_outcome"),
+  latencyMs: integer("latency_ms"),
+  serviceLatencyMs: integer("service_latency_ms"),
+  modelCalibrated: boolean("model_calibrated"),
+  modelTrained: boolean("model_trained"),
+  calibrationMetadata: jsonb("calibration_metadata"),
   createdAt: timestamp("created_at").default(sql`now()`),
 }, (table) => ({
   // Index for performance on fixture-based queries
@@ -161,6 +191,39 @@ export type TeamStats = typeof teamStats.$inferSelect;
 export type ScrapedData = typeof scrapedData.$inferSelect;
 export type InsertScrapedData = z.infer<typeof insertScrapedDataSchema>;
 
+export const ingestionStatusValues = ["pending", "running", "completed", "failed", "degraded"] as const;
+export const ingestionStatusSchema = z.enum(ingestionStatusValues);
+
+export const insertIngestionEventSchema = z.object({
+  source: z.string(),
+  scope: z.string(),
+  status: ingestionStatusSchema.optional(),
+  startedAt: z.coerce.date().optional(),
+  finishedAt: z.coerce.date().optional(),
+  durationMs: z.number().int().nonnegative().optional(),
+  recordsWritten: z.number().int().nonnegative().optional(),
+  fallbackUsed: z.boolean().optional(),
+  checksum: z.string().optional(),
+  metadata: z.record(z.unknown()).optional(),
+  error: z.string().optional(),
+  dedupeKey: z.string().optional(),
+  retryCount: z.number().int().nonnegative().optional(),
+  lastErrorAt: z.coerce.date().optional(),
+  metrics: z.record(z.unknown()).optional(),
+  updatedAt: z.coerce.date().optional(),
+});
+
+export const updateIngestionEventSchema = insertIngestionEventSchema.extend({
+  status: ingestionStatusSchema.optional(),
+  startedAt: z.coerce.date().optional(),
+  finishedAt: z.coerce.date().optional(),
+}).partial();
+
+export type IngestionStatus = (typeof ingestionStatusValues)[number];
+export type IngestionEvent = typeof ingestionEvents.$inferSelect;
+export type InsertIngestionEvent = z.infer<typeof insertIngestionEventSchema>;
+export type UpdateIngestionEvent = z.infer<typeof updateIngestionEventSchema>;
+
 // ML Service DTOs - matching FastAPI service models
 export const mlPredictionRequestSchema = z.object({
   fixture_id: z.number().optional(),
@@ -197,7 +260,16 @@ export const mlPredictionResponseSchema = z.object({
   }),
   key_features: z.array(mlKeyFeatureSchema),
   model_version: z.string(),
+  model_trained: z.boolean().optional(),
   explanation: z.string().optional(),
+  latency_ms: z.number().optional(),
+  service_latency_ms: z.number().optional(),
+  model_calibrated: z.boolean().optional(),
+  calibration: z.object({
+    method: z.string().optional(),
+    temperature: z.number().optional(),
+    applied: z.boolean().optional()
+  }).optional()
 });
 
 export const mlTrainingRequestSchema = z.object({

@@ -34,8 +34,15 @@ export function MobileMenu({ links }: MobileMenuProps) {
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Button variant="ghost" size="icon" className="md:hidden">
-          <i className="fas fa-bars"></i>
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className="md:hidden"
+          aria-label="Open navigation menu"
+          aria-expanded={open}
+        >
+          <i className="fas fa-bars" aria-hidden="true"></i>
+          <span className="sr-only">Menu</span>
         </Button>
       </SheetTrigger>
       <SheetContent side="left" className="w-[240px] sm:w-[300px]">

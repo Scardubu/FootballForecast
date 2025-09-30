@@ -115,4 +115,22 @@ export const apiClient = {
     // This endpoint returns a custom prediction object, not the direct API-Football prediction response
     return this.request<Prediction>(`predictions/${fixtureId}`);
   },
+
+  /**
+   * Fetches aggregated prediction telemetry for the given fixture IDs.
+   * @param fixtureIds An array of fixture IDs to fetch telemetry for.
+   * @returns A record mapping fixture IDs to their corresponding prediction telemetry.
+   */
+  getPredictionTelemetry: function(fixtureIds?: number[]) {
+    const query = Array.isArray(fixtureIds) && fixtureIds.length > 0
+      ? `?fixtureIds=${fixtureIds.join(",")}`
+      : "";
+    return this.request<Record<number, Prediction | undefined>>(`predictions/telemetry${query}`);
+  },
+
+  // --- Telemetry ---
+  getIngestionSummary: function(limit?: number) {
+    const query = typeof limit === 'number' && Number.isFinite(limit) ? `?limit=${Math.floor(limit)}` : '';
+    return this.request<any>(`telemetry/ingestion${query}`);
+  },
 };

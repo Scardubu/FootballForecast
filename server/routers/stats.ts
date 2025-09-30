@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { asyncHandler } from '../middleware';
+import { asyncHandler } from '../middleware/index.js';
 
 export const statsRouter = Router();
 

@@ -4,17 +4,17 @@ import {
   logger, 
   getPerformanceMetrics, 
   getMemoryUsage 
-} from "../middleware";
-import { apiFootballClient } from "../services/apiFootballClient";
-import { scrapingScheduler } from "../scraping-scheduler";
-import { getRateLimitStats } from "../middleware/rateLimiting";
-import { getConfigSummary, validateConfiguration } from "../config";
+} from "../middleware/index.js";
+import { apiFootballClient } from "../services/apiFootballClient.js";
+import { scrapingScheduler } from "../scraping-scheduler.js";
+import { getRateLimitStats } from "../middleware/rateLimiting.js";
+import { getConfigSummary, validateConfiguration } from "../config/index.js";
 import os from "os";
 
 export const healthRouter = Router();
 
 // Health and monitoring endpoints (no auth required)
-import { mlClient } from '../lib/ml-client';
+import { mlClient } from '../lib/ml-client.js';
 
 healthRouter.get('/health', asyncHandler(async (req, res) => {
   const startTime = Date.now();

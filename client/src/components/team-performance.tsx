@@ -2,8 +2,11 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/lib/auth-context";
 import type { TeamStats, Team } from "@/lib/types";
+import { useTelemetrySummary } from "@/hooks/use-telemetry";
+import { formatCalibrationRate, formatLatency } from "@/lib/telemetry-metrics";
 
 export function TeamPerformance() {
   const { auth, isLoading: authLoading } = useAuth();
@@ -17,6 +20,17 @@ export function TeamPerformance() {
     queryKey: ["/api/teams"],
     enabled: !authLoading, // allow public read without auth
   });
+
+  const { metrics: telemetryMetrics, loading: telemetryLoading, error: telemetryError } = useTelemetrySummary();
+
+  const calibrationRate = formatCalibrationRate(telemetryMetrics.calibrationRate);
+  const avgLatency = formatLatency(telemetryMetrics.averageLatencyMs);
+  const latestUpdate = telemetryMetrics.latestUpdatedAt
+    ? telemetryMetrics.latestUpdatedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    : "Pending";
+  const fallbackLabel = telemetryMetrics.uncalibratedFixtures > 0
+    ? `${telemetryMetrics.uncalibratedFixtures} fallback predictions`
+    : "Primary model active";
 
   const getTeam = (teamId: number): Team | undefined => {
     return (teams ?? []).find((team: Team) => team.id === teamId);
@@ -100,6 +114,25 @@ export function TeamPerformance() {
               </TooltipContent>
             </Tooltip>
           </div>
+
+          {telemetryLoading ? (
+            <Skeleton className="h-8 w-full" />
+          ) : (
+            <div className="bg-muted/30 rounded-lg px-3 py-2 text-xs flex flex-wrap items-center gap-2">
+              <Badge variant="secondary" className="uppercase tracking-wide">Calibration {calibrationRate}</Badge>
+              <Badge variant={telemetryMetrics.uncalibratedFixtures > 0 ? "destructive" : "outline"}>
+                {fallbackLabel}
+              </Badge>
+              <span className="text-muted-foreground">Latency {avgLatency}</span>
+              <span className="text-muted-foreground">Updated {latestUpdate}</span>
+              {telemetryError && (
+                <span className="text-destructive">Telemetry degraded</span>
+              )}
+              {telemetryMetrics.totalFixtures === 0 && !telemetryError && (
+                <span className="text-muted-foreground">Awaiting live predictions</span>
+              )}
+            </div>
+          )}
           
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">

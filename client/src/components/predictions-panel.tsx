@@ -6,9 +6,12 @@ import { PredictionCardSkeleton } from "@/components/loading";
 import { Grid } from "@/components/layout/grid";
 import { useApi } from "@/hooks/use-api";
 import { useLeagueStore } from "@/hooks/use-league-store";
-import type { Team } from "@shared/schema";
+import { OfflineIndicator } from "@/components/offline-indicator";
+import type { Prediction } from "@shared/schema";
 import type { APIFixture, APITeamData } from "@/lib/api-football-types";
 import { PredictionCard } from "@/components/prediction-card";
+import { Badge } from "@/components/ui/badge";
+import { useMemo } from "react";
 
 interface FixtureResponse {
   response: APIFixture[];
@@ -31,6 +34,21 @@ export function PredictionsPanel() {
   const fixtures = fixturesData?.response
     ?.filter(f => f.fixture.status.short === "NS" || f.fixture.status.short === "TBD")
     ?.slice(0, 3);
+
+  // Calculate telemetry endpoint BEFORE using it in hook
+  const fixtureIdsParam = Array.isArray(fixtures) && fixtures.length > 0
+    ? fixtures.map((fixtureData) => fixtureData.fixture.id).join(",")
+    : undefined;
+  const telemetryEndpoint = fixtureIdsParam
+    ? `/api/predictions/telemetry?fixtureIds=${fixtureIdsParam}`
+    : '/api/predictions/telemetry';
+
+  // FIXED: Always call useApi hook unconditionally
+  const { data: predictionsTelemetry } = useApi<Record<number, Prediction | undefined>>(telemetryEndpoint, {
+    retry: false,
+    enableCache: false,
+    disabled: !fixtureIdsParam, // Use disabled option instead of conditional hook
+  });
 
   // Get team data helper function
   const getTeam = (teamId: number): APITeamData['team'] | undefined => {
@@ -56,20 +74,71 @@ export function PredictionsPanel() {
     );
   }
 
+  const telemetrySummary = useMemo(() => {
+    if (!Array.isArray(fixtures) || !predictionsTelemetry) {
+      return null;
+    }
+
+    const selectedTelemetry = fixtures
+      .map(fixtureData => predictionsTelemetry[fixtureData.fixture.id])
+      .filter((pred): pred is Prediction => Boolean(pred));
+
+    if (selectedTelemetry.length === 0) {
+      return null;
+    }
+
+    const latencyValues = selectedTelemetry
+      .map(pred => pred.latencyMs ?? pred.serviceLatencyMs)
+      .filter((value): value is number => typeof value === 'number');
+    const averageLatency = latencyValues.length > 0
+      ? Math.round(latencyValues.reduce((sum, value) => sum + value, 0) / latencyValues.length)
+      : null;
+
+    const calibratedCount = selectedTelemetry.filter(pred => pred.modelCalibrated).length;
+    const fallbackCount = selectedTelemetry.filter(pred => pred.modelTrained === false).length;
+
+    return {
+      fixturesCount: selectedTelemetry.length,
+      averageLatency,
+      calibratedCount,
+      fallbackCount,
+    };
+  }, [fixtures, predictionsTelemetry]);
+
   return (
     <ErrorBoundary>
       <div>
-        <div className="flex items-center space-x-2 mb-6">
-          <Tooltip>
-            <TooltipTrigger>
-              <i className="fas fa-info-circle text-muted-foreground cursor-help" data-testid="predictions-info"></i>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Predictions based on team form, head-to-head stats, and advanced analytics</p>
-            </TooltipContent>
-          </Tooltip>
-          <span className="text-sm text-muted-foreground">AI-Powered</span>
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center space-x-2">
+            <Tooltip>
+              <TooltipTrigger>
+                <i className="fas fa-info-circle text-muted-foreground cursor-help" data-testid="predictions-info"></i>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Predictions based on team form, head-to-head stats, and advanced analytics</p>
+              </TooltipContent>
+            </Tooltip>
+            <span className="text-sm text-muted-foreground">AI-Powered</span>
+          </div>
+          <OfflineIndicator variant="subtle" />
         </div>
+
+        {telemetrySummary && (
+          <div className="flex flex-wrap items-center gap-2 mb-4 text-xs">
+            <Badge variant="secondary">
+              Fixtures analyzed: {telemetrySummary.fixturesCount}
+            </Badge>
+            <Badge variant="outline">
+              Calibration ready: {telemetrySummary.calibratedCount}/{telemetrySummary.fixturesCount}
+            </Badge>
+            <Badge variant={telemetrySummary.fallbackCount > 0 ? "destructive" : "default"}>
+              {telemetrySummary.fallbackCount > 0 ? `${telemetrySummary.fallbackCount} fallback` : "Primary model"}
+            </Badge>
+            {telemetrySummary.averageLatency !== null && (
+              <Badge variant="outline">Avg latency: {telemetrySummary.averageLatency} ms</Badge>
+            )}
+          </div>
+        )}
         
         <Grid cols={{ base: 1 }} gap={6}>
           <>

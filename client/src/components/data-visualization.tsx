@@ -9,6 +9,9 @@ import { AlertCircle, TrendingUp, Target, BarChart3 } from "lucide-react";
 import type { ScrapedData, TeamStats, Team } from "@shared/schema";
 import { useAuth } from "@/lib/auth-context";
 import { cn } from "@/lib/utils";
+import { useTelemetrySummary } from "@/hooks/use-telemetry";
+import type { TelemetryMetrics } from "@/lib/telemetry-metrics";
+import { formatCalibrationRate, formatLatency } from "@/lib/telemetry-metrics";
 
 // A component to display team performance stats in a card
 const TeamPerformanceCard = React.memo(function TeamPerformanceCard({
@@ -101,6 +104,66 @@ const TeamPerformanceCard = React.memo(function TeamPerformanceCard({
             </div>
           )}
         </div>
+      </CardContent>
+    </Card>
+  );
+});
+
+const TelemetrySummaryCard = React.memo(function TelemetrySummaryCard({
+  metrics,
+  loading,
+  error,
+}: {
+  metrics: TelemetryMetrics;
+  loading: boolean;
+  error: Error | null;
+}) {
+  const calibrationRate = formatCalibrationRate(metrics.calibrationRate);
+  const avgLatency = formatLatency(metrics.averageLatencyMs);
+  const p95Latency = formatLatency(metrics.p95LatencyMs);
+  const maxLatency = formatLatency(metrics.maxLatencyMs);
+
+  return (
+    <Card className="xl:col-span-2" data-testid="telemetry-summary-card">
+      <CardContent className="p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold text-foreground">Model Telemetry</h3>
+          {error && <span className="text-xs text-destructive">Degraded</span>}
+        </div>
+
+        {loading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {[...Array(4)].map((_, index) => (
+              <div key={index} className="p-4 bg-muted/40 rounded-lg">
+                <Skeleton className="h-4 w-24 mb-2" />
+                <Skeleton className="h-6 w-20" />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div className="p-4 bg-muted/30 rounded-lg">
+              <div className="text-xs text-muted-foreground mb-1">Fixtures Covered</div>
+              <div className="text-2xl font-semibold">{metrics.totalFixtures}</div>
+              <div className="text-xs text-muted-foreground">Calibrated {metrics.calibratedFixtures}</div>
+            </div>
+            <div className="p-4 bg-muted/30 rounded-lg">
+              <div className="text-xs text-muted-foreground mb-1">Calibration Rate</div>
+              <div className="text-2xl font-semibold">{calibrationRate}</div>
+              <div className="text-xs text-muted-foreground">Fallback {metrics.uncalibratedFixtures}</div>
+            </div>
+            <div className="p-4 bg-muted/30 rounded-lg">
+              <div className="text-xs text-muted-foreground mb-1">Avg Latency</div>
+              <div className="text-2xl font-semibold">{avgLatency}</div>
+              <div className="text-xs text-muted-foreground">P95 {p95Latency}</div>
+            </div>
+            <div className="p-4 bg-muted/30 rounded-lg">
+              <div className="text-xs text-muted-foreground mb-1">Peak Observed</div>
+              <div className="text-2xl font-semibold">{maxLatency}</div>
+              <div className="text-xs text-muted-foreground">Service Avg {formatLatency(metrics.serviceLatencyAverageMs)}</div>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
@@ -237,6 +300,7 @@ const TeamComparisonCard = React.memo(function TeamComparisonCard({
 
 export const DataVisualization = React.memo(function DataVisualization() {
   const { auth, isLoading: authLoading } = useAuth();
+  const { metrics: telemetryMetrics, loading: telemetryLoading, error: telemetryError } = useTelemetrySummary();
   
   const { data: teamStats, isLoading: statsLoading, error: statsError } = useQuery<TeamStats[]>({
     queryKey: ["/api/teams", "stats"],
@@ -371,99 +435,38 @@ export const DataVisualization = React.memo(function DataVisualization() {
     return Array.isArray(teamStats) ? teamStats.slice(0, 2) : [];
   }, [teamStats]);
 
+  const renderSkeletonCard = (key: string) => (
+    <Card key={key}>
+      <CardContent className="p-6">
+        <div className="animate-pulse space-y-4">
+          <Skeleton className="h-6 w-28" />
+          <div className="space-y-3">
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-3/4" />
+            <Skeleton className="h-4 w-2/3" />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
   return (
     <section className="mt-8">
       <h2 className="text-2xl font-bold text-foreground mb-6">Performance Analytics</h2>
-      
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+      <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+        <TelemetrySummaryCard metrics={telemetryMetrics} loading={telemetryLoading} error={telemetryError} />
+
         {teamStats && teamStats.length > 0 ? (
-          <>
-            <TeamPerformanceCard teamStats={teamStats} getTeamName={getTeamName} />
-            <TeamComparisonCard teams={topTeams} getTeamName={getTeamName} />
-          </>
+          <TeamPerformanceCard teamStats={teamStats} getTeamName={getTeamName} />
         ) : (
-          [...Array(2)].map((_, i) => (
-            <Card key={i}>
-              <CardContent className="p-6">
-                <div className="animate-pulse">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="h-6 w-28 bg-muted rounded"></div>
-                    <div className="h-6 w-8 bg-muted rounded"></div>
-                  </div>
-                  {i === 0 ? (
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="p-4 bg-primary/5 rounded-lg">
-                          <div className="h-8 w-12 bg-muted rounded mx-auto mb-2"></div>
-                          <div className="h-3 w-24 bg-muted rounded mx-auto"></div>
-                        </div>
-                        <div className="p-4 bg-secondary/5 rounded-lg">
-                          <div className="h-8 w-12 bg-muted rounded mx-auto mb-2"></div>
-                          <div className="h-3 w-24 bg-muted rounded mx-auto"></div>
-                        </div>
-                      </div>
-                      <div className="space-y-3">
-                        <div className="h-4 w-24 bg-muted rounded"></div>
-                        <div className="h-12 bg-muted/30 rounded-lg"></div>
-                        <div className="h-12 bg-muted/30 rounded-lg"></div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-6">
-                      <div className="flex items-center justify-between">
-                        <div className="h-4 w-24 bg-muted rounded"></div>
-                        <div className="flex items-center space-x-8">
-                          <div className="space-x-2 flex items-center">
-                            <div className="h-3 w-16 bg-muted rounded"></div>
-                            <div className="w-16 h-2 bg-muted/50 rounded-full"></div>
-                            <div className="h-3 w-6 bg-muted rounded"></div>
-                          </div>
-                          <div className="h-3 w-4 bg-muted rounded"></div>
-                          <div className="space-x-2 flex items-center">
-                            <div className="h-3 w-6 bg-muted rounded"></div>
-                            <div className="w-16 h-2 bg-muted/50 rounded-full"></div>
-                            <div className="h-3 w-16 bg-muted rounded"></div>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <div className="h-4 w-24 bg-muted rounded"></div>
-                        <div className="flex items-center space-x-8">
-                          <div className="space-x-2 flex items-center">
-                            <div className="h-3 w-16 bg-muted rounded"></div>
-                            <div className="w-16 h-2 bg-muted/50 rounded-full"></div>
-                            <div className="h-3 w-6 bg-muted rounded"></div>
-                          </div>
-                          <div className="h-3 w-4 bg-muted rounded"></div>
-                          <div className="space-x-2 flex items-center">
-                            <div className="h-3 w-6 bg-muted rounded"></div>
-                            <div className="w-16 h-2 bg-muted/50 rounded-full"></div>
-                            <div className="h-3 w-16 bg-muted rounded"></div>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <div className="h-4 w-24 bg-muted rounded"></div>
-                        <div className="flex items-center space-x-8">
-                          <div className="space-x-2 flex items-center">
-                            <div className="h-3 w-16 bg-muted rounded"></div>
-                            <div className="w-16 h-2 bg-muted/50 rounded-full"></div>
-                            <div className="h-3 w-6 bg-muted rounded"></div>
-                          </div>
-                          <div className="h-3 w-4 bg-muted rounded"></div>
-                          <div className="space-x-2 flex items-center">
-                            <div className="h-3 w-6 bg-muted rounded"></div>
-                            <div className="w-16 h-2 bg-muted/50 rounded-full"></div>
-                            <div className="h-3 w-16 bg-muted rounded"></div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))
+          renderSkeletonCard("team-performance-skeleton")
+        )}
+
+        {topTeams.length >= 2 ? (
+          <TeamComparisonCard teams={topTeams} getTeamName={getTeamName} />
+        ) : (
+          renderSkeletonCard("team-comparison-skeleton")
         )}
       </div>
     </section>

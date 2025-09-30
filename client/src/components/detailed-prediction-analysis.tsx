@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api-client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { LoadingState } from './loading';
 import type { Prediction } from '@shared/schema';
 
@@ -15,6 +16,21 @@ export function DetailedPredictionAnalysis({ fixtureId }: DetailedPredictionAnal
     queryFn: () => apiClient.getPredictions(fixtureId),
     enabled: !!fixtureId, // Only run query if fixtureId is available
   });
+
+  const latency = prediction?.latencyMs ?? prediction?.serviceLatencyMs ?? null;
+  const calibration = (prediction?.calibrationMetadata || undefined) as {
+    method?: string;
+    temperature?: number;
+    applied?: boolean;
+  } | undefined;
+  const predictedOutcomeLabel = prediction?.predictedOutcome?.toUpperCase();
+  const calibrationSummary = calibration
+    ? [
+        calibration.method ? `method: ${calibration.method}` : null,
+        typeof calibration.temperature === 'number' ? `T=${calibration.temperature.toFixed(2)}` : null,
+        calibration.applied === false ? 'pending' : 'applied'
+      ].filter(Boolean).join(' • ')
+    : null;
 
   if (isLoading) {
     return (
@@ -71,6 +87,23 @@ export function DetailedPredictionAnalysis({ fixtureId }: DetailedPredictionAnal
           </div>
         </div>
 
+        {(latency !== null || calibrationSummary) && (
+          <div className="bg-muted/60 rounded-lg p-4 text-sm text-muted-foreground space-y-2">
+            {latency !== null && (
+              <div className="flex items-center space-x-2" data-testid={`latency-${fixtureId}`}>
+                <i className="fas fa-stopwatch" aria-hidden />
+                <span>Latency: <span className="font-medium text-foreground">{latency} ms</span></span>
+              </div>
+            )}
+            {calibrationSummary && (
+              <div className="flex items-center space-x-2" data-testid={`calibration-${fixtureId}`}>
+                <i className="fas fa-balance-scale" aria-hidden />
+                <span>Calibration {calibrationSummary}</span>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
                 <div className="font-medium mb-2">Expected Goals</div>
@@ -84,7 +117,17 @@ export function DetailedPredictionAnalysis({ fixtureId }: DetailedPredictionAnal
             </div>
         </div>
          <div className="text-xs text-muted-foreground pt-2 border-t border-border">
-            Model: {prediction.mlModel || 'N/A'} | Confidence: {`${parseFloat(prediction.confidence || '0').toFixed(1)}%`}
+            <div className="flex flex-wrap items-center gap-3">
+              <span>Model: {prediction.mlModel || 'N/A'}</span>
+              <Tooltip>
+                <TooltipTrigger className="underline-offset-4 decoration-dotted underline">
+                  Confidence: {`${parseFloat(prediction.confidence || '0').toFixed(1)}%`}
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Model confidence accounts for data freshness and calibration quality.</p>
+                </TooltipContent>
+              </Tooltip>
+            </div>
         </div>
       </CardContent>
     </Card>

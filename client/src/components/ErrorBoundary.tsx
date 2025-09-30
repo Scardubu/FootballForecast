@@ -1,5 +1,7 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
-import { Alert, AlertTitle, AlertDescription, Button, Card, CardHeader, CardTitle, CardContent } from '@/components/ui';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { RefreshCw, Home } from 'lucide-react';
 
 interface ErrorBoundaryProps {

@@ -5,8 +5,8 @@
 import { drizzle } from 'drizzle-orm/postgres-js';
 // @ts-ignore - postgres package may not be installed yet
 import postgres from 'postgres';
-import { logger } from '../middleware';
-import { database as dbConfig } from '../config';
+import { logger } from '../middleware/index.js';
+import { database as dbConfig } from '../config/index.js';
 
 // Connection pool configuration
 const POOL_SIZE = parseInt(process.env.DB_POOL_SIZE || '10', 10);
