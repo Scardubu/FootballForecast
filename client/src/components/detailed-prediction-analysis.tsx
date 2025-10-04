@@ -15,6 +15,10 @@ export function DetailedPredictionAnalysis({ fixtureId }: DetailedPredictionAnal
     queryKey: ['prediction', fixtureId],
     queryFn: () => apiClient.getPredictions(fixtureId),
     enabled: !!fixtureId, // Only run query if fixtureId is available
+    staleTime: 1000 * 60 * 15, // 15 minutes (prevent constant reloads)
+    retry: 1, // Only retry once
+    refetchOnWindowFocus: false, // Prevent reload on tab switch
+    refetchOnReconnect: false, // Prevent reload on network reconnect
   });
 
   const latency = prediction?.latencyMs ?? prediction?.serviceLatencyMs ?? null;

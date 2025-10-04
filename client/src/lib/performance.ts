@@ -95,8 +95,8 @@ class PerformanceMonitor {
       duration,
     });
 
-    // Log slow operations in development
-    if (process.env.NODE_ENV === 'development' && duration > 100) {
+    // Log slow operations only in production (disabled in development to reduce noise)
+    if (process.env.NODE_ENV === 'production' && duration > 1000) {
       console.warn(`⚠️ Slow operation detected: ${name} took ${duration.toFixed(2)}ms`);
     }
 
@@ -108,7 +108,8 @@ class PerformanceMonitor {
   }
 
   private logMetric(name: string, data: any): void {
-    if (process.env.NODE_ENV === 'development') {
+    // Only log metrics in production to avoid development console noise
+    if (process.env.NODE_ENV === 'production') {
       console.log(`📊 Performance: ${name}`, data);
     }
   }

@@ -249,9 +249,9 @@ class PlaywrightScraper:
                 with open(cache_file, 'r') as f:
                     data = json.load(f)
                 
-                # Check if cache is still valid (30 minutes for live data)
+                # Check if cache is still valid (default 30 minutes for live data)
                 cache_age = time.time() - data.get('cached_at', 0)
-                if cache_age < 1800:  # 30 minutes
+                if cache_age < 1800:  # default 30 minutes
                     return data['content']
             except (json.JSONDecodeError, KeyError):
                 pass
@@ -269,15 +269,41 @@ class PlaywrightScraper:
         
         with open(cache_file, 'w') as f:
             json.dump(cache_data, f, indent=2)
+
+    def _get_ttl_seconds(self, data_type: str) -> int:
+        """Return TTL seconds based on data type requirements"""
+        mapping = {
+            'odds': 600,           # 10 minutes
+            'injuries': 3600,      # 1 hour
+            'weather': 10800,      # 3 hours
+            'advanced_stats': 86400, # 24 hours
+            'match_stats': 86400,
+            'team_form': 86400,
+        }
+        return mapping.get(data_type, 1800)  # default 30 min
+
+    def _get_cached_data_ttl(self, cache_key: str, ttl_seconds: int) -> Optional[Dict]:
+        """TTL-aware cache accessor without breaking existing callers"""
+        cache_file = self.cache_dir / f"{cache_key}.json"
+        if cache_file.exists():
+            try:
+                with open(cache_file, 'r') as f:
+                    data = json.load(f)
+                cache_age = time.time() - data.get('cached_at', 0)
+                if cache_age < ttl_seconds:
+                    return data['content']
+            except (json.JSONDecodeError, KeyError):
+                return None
+        return None
     
     async def save_to_database(self, data: ScrapedData):
-        """Save scraped data to PostgreSQL database via API"""
-        # Integration point with main application's storage layer
-        # This will be connected to the main PostgreSQL database
+        """Save scraped data to API with Authorization header (compat shim)"""
+        # Prefer persist_scraped_data for retries; keep this for backward compatibility
         try:
             import requests
-            
-            # Convert scraped data to format expected by main application
+            api_base = os.getenv('API_BASE_URL', 'http://localhost:5000')
+            token = os.getenv('SCRAPER_BEARER_TOKEN') or os.getenv('SCRAPER_AUTH_TOKEN')
+
             payload = {
                 'source': data.source,
                 'data_type': data.data_type,
@@ -287,21 +313,21 @@ class PlaywrightScraper:
                 'scraped_at': data.scraped_at,
                 'confidence': data.confidence
             }
-            
-            # Send to internal API endpoint for database storage
-            response = requests.post('http://localhost:5000/api/scraped-data', json=payload)
+
+            headers = {'Content-Type': 'application/json'}
+            if token:
+                headers['Authorization'] = f'Bearer {token}'
+
+            response = requests.post(f"{api_base}/api/scraped-data", json=payload, headers=headers, timeout=30)
             response.raise_for_status()
-            
             print(f"✅ Saved {data.data_type} data from {data.source}")
-            
         except Exception as e:
             print(f"⚠️ Failed to save scraped data: {e}")
-            # Fallback: save to local cache for later retry
             cache_key = f"failed_{data.source}_{data.fixture_id or data.team_id}_{int(time.time())}"
             self._save_to_cache(cache_key, {
                 'data': data.__dict__,
                 'error': str(e),
-                'retry_after': time.time() + 300  # Retry after 5 minutes
+                'retry_after': time.time() + 300
             })
     
     async def get_fallback_data(self, data_type: str, identifier: int) -> Optional[Dict]:

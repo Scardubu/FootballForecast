@@ -256,37 +256,37 @@ export function validateEnvironmentConfig(options: ConfigValidationOptions = {})
 export function logValidationResults(result: ValidationResult, options: ConfigValidationOptions = {}) {
   const { environment = process.env.NODE_ENV || 'development' } = options;
 
-  logger.info('🔧 Environment Configuration Validation');
-  logger.info(`📍 Environment: ${environment}`);
-  logger.info('─'.repeat(50));
+  logger.info('[CONFIG] Environment Configuration Validation');
+  logger.info(`[ENV] Environment: ${environment}`);
+  logger.info('-'.repeat(50));
 
   if (result.valid) {
-    logger.info('✅ All environment variables are properly configured');
+    logger.info('[OK] All environment variables are properly configured');
   } else {
-    logger.error('❌ Environment configuration issues detected');
+    logger.error('[ERROR] Environment configuration issues detected');
   }
 
   if (result.errors.length > 0) {
-    logger.error('\n🚨 ERRORS (must be fixed):');
-    result.errors.forEach(error => logger.error(`  • ${error}`));
+    logger.error('\n[ERRORS] (must be fixed):');
+    result.errors.forEach(error => logger.error(`  - ${error}`));
   }
 
   if (result.warnings.length > 0) {
-    logger.warn('\n⚠️  WARNINGS (recommended fixes):');
-    result.warnings.forEach(warning => logger.warn(`  • ${warning}`));
+    logger.warn('\n[WARNINGS] (recommended fixes):');
+    result.warnings.forEach(warning => logger.warn(`  - ${warning}`));
   }
 
   if (result.suggestions.length > 0) {
-    logger.info('\n💡 SUGGESTIONS:');
-    result.suggestions.forEach(suggestion => logger.info(`  • ${suggestion}`));
+    logger.info('\n[SUGGESTIONS]:');
+    result.suggestions.forEach(suggestion => logger.info(`  - ${suggestion}`));
   }
 
   if (!result.valid) {
-    logger.info('\n📚 For setup help, see: DEPLOYMENT.md');
-    logger.info('🔗 Environment variables guide: https://docs.netlify.com/configure-builds/environment-variables/');
+    logger.info('\n[HELP] For setup help, see: DEPLOYMENT.md');
+    logger.info('[DOCS] Environment variables guide: https://docs.netlify.com/configure-builds/environment-variables/');
   }
 
-  logger.info('─'.repeat(50));
+  logger.info('-'.repeat(50));
 }
 
 /**
@@ -306,13 +306,13 @@ export function validateConfigOrExit(options: ConfigValidationOptions = {}) {
       const hasSomeVars = criticalVars.some(key => process.env[key] && process.env[key]?.trim() !== '');
       
       if (hasSomeVars) {
-        logger.warn('⚠️ Running with incomplete configuration in development mode');
-        logger.warn('⚠️ Some features may not work correctly');
+        logger.warn('[WARN] Running with incomplete configuration in development mode');
+        logger.warn('[WARN] Some features may not work correctly');
         return result;
       }
     }
     
-    logger.error('💥 Cannot start application due to configuration errors');
+    logger.error('[ERROR] Cannot start application due to configuration errors');
     process.exit(1);
   }
 

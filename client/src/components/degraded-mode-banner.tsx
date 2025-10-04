@@ -6,6 +6,7 @@ export function DegradedModeBanner() {
   const [message, setMessage] = React.useState<string | null>(null);
   const [isServerDown, setIsServerDown] = React.useState(false);
   const [showHelp, setShowHelp] = React.useState(false);
+  const [isInitialLoad, setIsInitialLoad] = React.useState(true);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -36,6 +37,7 @@ export function DegradedModeBanner() {
           }
 
           setIsServerDown(false);
+          setIsInitialLoad(false);
           localStorage.setItem('serverStatus', 'online');
           window.dispatchEvent(new Event('serverStatusChange'));
 
@@ -49,14 +51,20 @@ export function DegradedModeBanner() {
         } catch (error) {
           clearTimeout(timeoutId);
           if (!cancelled) {
-            // Show server connection error message
-            setIsServerDown(true);
-            setMessage('Server connection failed. Running in offline mode with limited functionality.');
-            setVisible(true);
-            
-            // Store server status in localStorage for other components to check
-            localStorage.setItem('serverStatus', 'offline');
-            window.dispatchEvent(new Event('serverStatusChange'));
+            // Only show error if not initial load (prevents flash of error on page load)
+            if (!isInitialLoad) {
+              // Show server connection error message
+              setIsServerDown(true);
+              setMessage('Server connection failed. Running in offline mode with limited functionality.');
+              setVisible(true);
+              
+              // Store server status in localStorage for other components to check
+              localStorage.setItem('serverStatus', 'offline');
+              window.dispatchEvent(new Event('serverStatusChange'));
+            } else {
+              // On initial load, silently mark as loaded
+              setIsInitialLoad(false);
+            }
           }
         }
       } catch (error) {

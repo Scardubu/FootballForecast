@@ -4,6 +4,12 @@
 
 export { httpLogger, logger } from './logger';
 export { authenticateToken, optionalAuth, createAuthMiddleware } from './auth';
+export {
+  stackAuthMiddleware,
+  optionalStackAuth,
+  hybridAuthMiddleware,
+} from './stack-auth';
+export type { AuthenticatedRequest as StackAuthRequest } from './stack-auth';
 export type { AuthenticatedRequest } from './auth';
 export { generalRateLimit, strictRateLimit, createRateLimit, logRateLimitViolation } from './rateLimiting';
 export { 

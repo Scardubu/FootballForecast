@@ -10,6 +10,9 @@ async function throwIfResNotOk(res: Response) {
       throw new Error('Authentication required');
     } else if (res.status === 403) {
       throw new Error('Access denied');
+    } else if (res.status === 429) {
+      // Rate limit hit - throw specific error for better handling
+      throw new Error('429 Too Many Requests - Rate limit exceeded. Using cached data.');
     } else if (res.status >= 500) {
       throw new Error(`Server error (${res.status}): The server encountered an error`);
     }
@@ -104,37 +107,37 @@ export const getQueryFn = <T>(options: {
 const getCacheConfig = (queryKey: string[]) => {
   const endpoint = queryKey.join('/').toLowerCase();
   
-  // Live data - refresh frequently
+  // Live data - manual refresh only (no auto-refresh to prevent constant reloading)
   if (endpoint.includes('live') || endpoint.includes('fixtures/live')) {
     return {
-      staleTime: 30 * 1000, // 30 seconds
+      staleTime: 60 * 1000, // 1 minute
       gcTime: 5 * 60 * 1000, // 5 minutes
-      refetchInterval: 60 * 1000, // 1 minute
-      refetchOnWindowFocus: true,
+      refetchInterval: false, // DISABLED: Manual refresh only
+      refetchOnWindowFocus: false, // DISABLED: Prevents reload on tab switch
     };
   }
   
-  // Match predictions - moderate refresh
+  // Match predictions - cache aggressively, manual refresh only
   if (endpoint.includes('predictions')) {
     return {
-      staleTime: 10 * 60 * 1000, // 10 minutes
+      staleTime: 15 * 60 * 1000, // 15 minutes
       gcTime: 30 * 60 * 1000, // 30 minutes
-      refetchInterval: 15 * 60 * 1000, // 15 minutes
-      refetchOnWindowFocus: true,
+      refetchInterval: false, // DISABLED: Manual refresh only
+      refetchOnWindowFocus: false, // DISABLED: Prevents reload on tab switch
     };
   }
   
-  // Standings - refresh occasionally
+  // Standings - cache aggressively
   if (endpoint.includes('standings')) {
     return {
-      staleTime: 30 * 60 * 1000, // 30 minutes
+      staleTime: 60 * 60 * 1000, // 1 hour
       gcTime: 2 * 60 * 60 * 1000, // 2 hours
-      refetchInterval: 60 * 60 * 1000, // 1 hour
+      refetchInterval: false, // No auto-refresh
       refetchOnWindowFocus: false,
     };
   }
   
-  // Static data (leagues, teams) - cache aggressively
+  // Static data (leagues, teams) - cache very aggressively
   if (endpoint.includes('leagues') || endpoint.includes('teams')) {
     return {
       staleTime: 24 * 60 * 60 * 1000, // 24 hours
@@ -144,12 +147,12 @@ const getCacheConfig = (queryKey: string[]) => {
     };
   }
   
-  // Default configuration
+  // Default configuration - no auto-refresh
   return {
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 10 * 60 * 1000, // 10 minutes
     gcTime: 30 * 60 * 1000, // 30 minutes
-    refetchInterval: false,
-    refetchOnWindowFocus: false,
+    refetchInterval: false, // DISABLED: Manual refresh only
+    refetchOnWindowFocus: false, // DISABLED: Prevents reload on tab switch
   };
 };
 
@@ -157,25 +160,39 @@ export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       queryFn: getQueryFn({ on401: "throw" }),
-      staleTime: 5 * 60 * 1000, // Default 5 minutes
+      staleTime: 10 * 60 * 1000, // Default 10 minutes (increased from 5)
       gcTime: 30 * 60 * 1000, // Default 30 minutes
       retry: (failureCount, error: any) => {
-        // Don't retry on 4xx errors (client errors)
-        if (error?.message?.includes('4')) return false;
-        // Retry up to 3 times for network/server errors
-        return failureCount < 3;
+        // NEVER retry on 429 (rate limit) - use cached data instead
+        if (error?.message?.includes('429') || error?.message?.includes('Too Many Requests')) {
+          console.warn('Rate limit hit - will use cached data');
+          return false;
+        }
+        // Don't retry on other 4xx errors (client errors)
+        if (error?.message?.includes('400') || 
+            error?.message?.includes('401') || 
+            error?.message?.includes('403') || 
+            error?.message?.includes('404')) {
+          return false;
+        }
+        // Retry only once for network/server errors to prevent retry storms
+        return failureCount < 1;
       },
-      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: true,
-      // Enable background updates for better UX
+      retryDelay: (attemptIndex) => {
+        // Fixed 3 second delay to prevent retry spam
+        return 3000;
+      },
+      refetchOnWindowFocus: false, // DISABLED: Prevents reload when switching tabs
+      refetchOnReconnect: false, // DISABLED: Prevents reload on network reconnect
       refetchIntervalInBackground: false,
+      // Prevent duplicate requests in flight
+      networkMode: 'online',
     },
     mutations: {
       retry: (failureCount, error: any) => {
-        // Don't retry mutations on client errors
+        // Never retry mutations on any client errors or rate limits
         if (error?.message?.includes('4')) return false;
-        return failureCount < 2;
+        return failureCount < 1; // Only 1 retry for mutations
       },
     },
   },

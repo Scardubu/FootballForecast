@@ -108,15 +108,9 @@ export class ApiFootballClient {
 
       if (!response.ok) {
         if (response.status === 429) {
-          // Rate limited - implement exponential backoff
-          const retryAfter = response.headers.get('retry-after');
-          const delayMs = retryAfter ? parseInt(retryAfter) * 1000 : this.calculateBackoffDelay(attempt);
-          
-          if (attempt <= this.maxRetries) {
-            logger.warn({ endpoint: endpoint, delayMs: delayMs, attempt: attempt }, 'Rate limited, retrying');
-            await this.sleep(delayMs);
-            return this.makeRequestWithRetry<T>(endpoint, cacheKey, attempt + 1);
-          }
+          // Rate limited - return cached data immediately, don't retry
+          logger.warn({ endpoint: endpoint }, 'HTTP 429 Rate limit - using cached/fallback data');
+          return this.getCachedDataOrFallback<T>(cacheKey, endpoint);
         }
         
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -130,6 +124,8 @@ export class ApiFootballClient {
         if (typeof data.errors === 'object' && !Array.isArray(data.errors)) {
           if (data.errors.requests) {
             logger.warn({ endpoint: endpoint, error: data.errors.requests }, 'API-Football request limit reached');
+            // Mark as non-retryable by recording failure without retry
+            this.recordFailure();
             throw new Error(`API_LIMIT_REACHED: ${data.errors.requests}`);
           }
           if (data.errors.plan) {
@@ -172,10 +168,16 @@ export class ApiFootballClient {
       const errorMessage = error instanceof Error ? error.message : String(error);
       logger.error({ endpoint: endpoint, attempt: attempt, error: errorMessage }, 'API request failed');
       
-      // Record failure for circuit breaker
+      // For rate limit errors, immediately return cached/fallback data without retry
+      if (errorMessage.includes('API_LIMIT_REACHED') || errorMessage.includes('API_RATE_LIMIT')) {
+        logger.warn({ endpoint: endpoint }, 'Rate limit reached, using cached/fallback data immediately');
+        return this.getCachedDataOrFallback<T>(cacheKey, endpoint);
+      }
+      
+      // Record failure for circuit breaker (only for non-rate-limit errors)
       this.recordFailure();
       
-      // Retry logic for transient errors
+      // Retry logic for transient errors only
       if (attempt <= this.maxRetries && this.shouldRetry(errorMessage)) {
         const delayMs = this.calculateBackoffDelay(attempt);
         logger.info({ endpoint: endpoint, delayMs: delayMs, attempt: attempt }, 'Retrying');
@@ -237,8 +239,10 @@ export class ApiFootballClient {
   }
 
   private shouldRetry(errorMessage: string): boolean {
-    // Don't retry on plan limits or permanent errors
-    return !errorMessage.includes('API_PLAN_LIMIT') && 
+    // Don't retry on rate limits, plan limits, or permanent errors
+    return !errorMessage.includes('API_LIMIT_REACHED') &&
+           !errorMessage.includes('API_PLAN_LIMIT') && 
+           !errorMessage.includes('API_RATE_LIMIT') &&
            !errorMessage.includes('401') && 
            !errorMessage.includes('403');
   }
@@ -287,15 +291,39 @@ export class ApiFootballClient {
       return staleEntry.data;
     }
     
-    // Generate fallback response
-    logger.error({ endpoint: endpoint }, 'Generating fallback response');
+    // Generate enhanced fallback response based on endpoint
+    logger.warn({ endpoint: endpoint }, 'Generating enhanced fallback response');
+    
+    // Import enhanced fallback data dynamically
+    let fallbackResponse: any[] = [];
+    
+    try {
+      const { enhancedFallbackData } = await import('../lib/enhanced-fallback-data.js');
+      
+      if (endpoint.includes('fixtures?live=all')) {
+        fallbackResponse = enhancedFallbackData.generateLiveFixtures(5);
+      } else if (endpoint.includes('fixtures') && !endpoint.includes('live')) {
+        fallbackResponse = enhancedFallbackData.generateUpcomingFixtures(10);
+      } else if (endpoint.includes('standings')) {
+        const leagueIdMatch = endpoint.match(/league=(\d+)/);
+        const leagueId = leagueIdMatch ? parseInt(leagueIdMatch[1]) : 39;
+        fallbackResponse = [{ league: { id: leagueId, name: 'League', standings: [enhancedFallbackData.generateStandings(leagueId)] } }];
+      } else if (endpoint.includes('teams/statistics')) {
+        const teamIdMatch = endpoint.match(/team=(\d+)/);
+        const teamId = teamIdMatch ? parseInt(teamIdMatch[1]) : 33;
+        fallbackResponse = [enhancedFallbackData.generateTeamStats(teamId)];
+      }
+    } catch (error) {
+      logger.error({ error: error instanceof Error ? error.message : String(error) }, 'Failed to generate enhanced fallback');
+    }
+    
     return {
       get: endpoint,
       parameters: {},
       errors: [],
-      results: 0,
+      results: fallbackResponse.length,
       paging: { current: 1, total: 1 },
-      response: [] as unknown as T
+      response: fallbackResponse as unknown as T
     };
   }
 

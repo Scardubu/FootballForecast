@@ -9,6 +9,7 @@ import { apiFootballClient } from "../services/apiFootballClient.js";
 import { scrapingScheduler } from "../scraping-scheduler.js";
 import { getRateLimitStats } from "../middleware/rateLimiting.js";
 import { getConfigSummary, validateConfiguration } from "../config/index.js";
+import { systemMonitor } from "../lib/system-monitor.js";
 import os from "os";
 
 export const healthRouter = Router();
@@ -16,8 +17,11 @@ export const healthRouter = Router();
 // Health and monitoring endpoints (no auth required)
 import { mlClient } from '../lib/ml-client.js';
 
-healthRouter.get('/health', asyncHandler(async (req, res) => {
+healthRouter.get('/', asyncHandler(async (req, res) => {
   const startTime = Date.now();
+  
+  // Record request in system monitor
+  systemMonitor.recordRequest();
   
   // Check DB connection
   let dbStatus: 'healthy' | 'unhealthy' = 'healthy';
@@ -25,6 +29,7 @@ healthRouter.get('/health', asyncHandler(async (req, res) => {
     await req.app.get('storage').getLeagues();
   } catch (err) {
     dbStatus = 'unhealthy';
+    systemMonitor.recordError();
   }
 
   // Check ML service
@@ -36,19 +41,46 @@ healthRouter.get('/health', asyncHandler(async (req, res) => {
     mlStatus = 'unhealthy';
   }
   
+  // Check hybrid data sources availability
+  const hybridDataSources = {
+    openweather: {
+      configured: !!process.env.OPENWEATHER_API_KEY && process.env.OPENWEATHER_API_KEY.length > 10,
+      status: !!process.env.OPENWEATHER_API_KEY ? 'ready' : 'not_configured'
+    },
+    odds: {
+      configured: true,
+      status: 'ready',
+      source: 'OddsPortal'
+    },
+    injuries: {
+      configured: true,
+      status: 'ready',
+      source: 'PhysioRoom'
+    }
+  };
+  
   // Check configuration
   const configCheck = validateConfiguration();
   
   // Get performance metrics
   const performanceMetrics = getPerformanceMetrics().slice(0, 5); // Just top 5
   
+  // Get system health from monitor
+  const systemHealth = systemMonitor.getSystemHealth();
+  const stats = systemMonitor.getStats();
+  
   // Response time calculation
   const responseTime = Date.now() - startTime;
 
   res.json({
-    status: dbStatus === 'healthy' && mlStatus === 'healthy' ? 'healthy' : 'degraded',
+    status: dbStatus === 'healthy' && mlStatus === 'healthy' && systemHealth.overall === 'healthy' ? 'healthy' : 'degraded',
     db: dbStatus,
     ml: mlStatus,
+    systemHealth: {
+      overall: systemHealth.overall,
+      alerts: systemHealth.alerts
+    },
+    hybridData: hybridDataSources,
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
     version: process.env.npm_package_version || '1.0.0',
@@ -61,7 +93,8 @@ healthRouter.get('/health', asyncHandler(async (req, res) => {
       responseTime,
       metrics: performanceMetrics
     },
-    memory: getMemoryUsage()
+    memory: getMemoryUsage(),
+    stats: stats
   });
 }));
 

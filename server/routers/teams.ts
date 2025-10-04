@@ -17,11 +17,15 @@ teamsRouter.get("/", asyncHandler(async (req, res) => {
     params.append('season', season as string);
     const endpoint = `teams?${params.toString()}`;
     const data = await apiFootballClient.request(endpoint);
+    // Cache API-proxied data for 1 hour
+    res.set('Cache-Control', 'public, max-age=3600, stale-while-revalidate=7200');
     return res.json(data);
   }
 
   // Otherwise, fetch from local storage
   const teams = await storage.getTeams();
+  // Cache local team data for 24 hours (teams don't change often)
+  res.set('Cache-Control', 'public, max-age=86400, stale-while-revalidate=172800');
   res.json(teams);
 }));
 

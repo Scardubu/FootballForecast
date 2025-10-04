@@ -83,7 +83,7 @@ async function generateMLPredictions(fixtureId: number, homeTeamId: number, away
 }
 
 
-async function updateLiveFixtures() {
+export async function updateLiveFixtures() {
   try {
     const data = await fetchFromAPIFootball('fixtures?live=all');
     
@@ -96,7 +96,6 @@ async function updateLiveFixtures() {
           date: new Date(match.fixture.date),
           timestamp: match.fixture.timestamp,
           status: match.fixture.status.short,
-          elapsed: match.fixture.status.elapsed,
           round: match.league.round,
           homeTeamId: match.teams.home.id,
           awayTeamId: match.teams.away.id,
@@ -104,8 +103,8 @@ async function updateLiveFixtures() {
           venue: match.fixture.venue?.name,
           homeScore: match.goals.home,
           awayScore: match.goals.away,
-          halftimeHomeScore: match.score.halftime.home,
-          halftimeAwayScore: match.score.halftime.away,
+          halftimeHomeScore: match.score?.halftime?.home ?? null,
+          halftimeAwayScore: match.score?.halftime?.away ?? null,
         };
         
         // Update league first
@@ -173,24 +172,36 @@ async function updateLiveFixtures() {
 // Get live fixtures - Directly proxying to API Football client
 fixturesRouter.get("/live", asyncHandler(async (req, res) => {
   const data = await fetchFromAPIFootball('fixtures?live=all');
+  // Cache live fixtures for 30 seconds (very short since data changes quickly)
+  res.set('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
   res.json(data);
 }));
 
-// Get fixtures with optional filters by league and date
+// Get fixtures with optional filters (league, date, season, status, limit, team, etc.)
 fixturesRouter.get("/", asyncHandler(async (req, res) => {
-  const { league, date } = req.query;
-  
-  // If no filters, get from storage as a fallback
-  if (!league && !date) {
+  const query = req.query as Record<string, any>;
+
+  // If no filters, return from storage (cached)
+  if (!query || Object.keys(query).length === 0) {
     const fixtures = await storage.getFixtures();
+    res.set('Cache-Control', 'public, max-age=600, stale-while-revalidate=1200');
     return res.json(fixtures);
   }
 
+  // Build pass-through params for API Football
   const params = new URLSearchParams();
-  if (league) params.append('league', league as string);
-  if (date) params.append('date', date as string);
+  for (const [key, value] of Object.entries(query)) {
+    if (value == null) continue;
+    // Support arrays and scalars
+    if (Array.isArray(value)) {
+      value.forEach(v => params.append(key, String(v)));
+    } else {
+      params.append(key, String(value));
+    }
+  }
 
   const endpoint = `fixtures?${params.toString()}`;
   const data = await fetchFromAPIFootball(endpoint);
+  res.set('Cache-Control', 'public, max-age=300, stale-while-revalidate=600');
   res.json(data);
 }));

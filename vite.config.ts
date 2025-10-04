@@ -9,40 +9,30 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
   plugins: [
     react({
-      // Use default React plugin configuration with automatic JSX runtime
       jsxRuntime: 'automatic'
     }),
-    // Removed Replit-specific plugins for local development
-    // @replit/vite-plugin-runtime-error-modal and cartographer
   ],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "client", "src"),
       "@shared": path.resolve(__dirname, "shared"),
-      "@assets": path.resolve(__dirname, "attached_assets"),
     },
   },
   root: path.resolve(__dirname, "client"),
   build: {
     outDir: path.resolve(__dirname, "dist/public"),
-    emptyOutDir: true, // Force clean of the output directory on each build
-    chunkSizeWarningLimit: 1000, // Increase warning limit
-    sourcemap: process.env.NODE_ENV === 'development', // Source maps only in dev
-    cssCodeSplit: true, // Split CSS into separate files for better caching
-    assetsInlineLimit: 4096, // Inline assets smaller than 4kb
+    emptyOutDir: true,
     rollupOptions: {
-      // Enable tree shaking
-      treeshake: {
-        preset: 'recommended',
-        moduleSideEffects: false,
-      },
+      input: path.resolve(__dirname, "client/index.html"),
       output: {
-        // Let Vite/Rollup handle chunk splitting automatically for now
-        // Improve chunk naming for better caching with stable content hashes
-        chunkFileNames: `assets/[name]-[hash].js`,
-        entryFileNames: `assets/[name]-[hash].js`,
-        assetFileNames: `assets/[name]-[hash].[ext]`,
-      },
+        // Optimize chunk splitting
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom', 'wouter'],
+          'vendor-ui': ['@radix-ui/react-select', '@radix-ui/react-dialog', '@radix-ui/react-tooltip'],
+          'vendor-charts': ['recharts'],
+          'vendor-query': ['@tanstack/react-query']
+        }
+      }
     },
     // Enable minification optimizations
     minify: 'esbuild',
@@ -51,21 +41,26 @@ export default defineConfig({
     commonjsOptions: {
       include: [/node_modules/],
       extensions: ['.js', '.cjs'],
+      transformMixedEsModules: true
     },
   },
   server: {
     fs: {
       strict: true,
       deny: ["**/.*"],
+      allow: [
+        path.resolve(__dirname, "client"),
+        path.resolve(__dirname, "node_modules"),
+        path.resolve(__dirname)
+      ],
     },
     headers: {
-      'Content-Security-Policy': process.env.NODE_ENV === 'development' 
-        ? "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; style-src-elem 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data: https:; connect-src 'self' ws: wss:;"
-        : "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; style-src-elem 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data: https:;"
+      // CSP for development server - permissive to allow HMR and third-party libraries
+      'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; style-src-elem 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data: https:; connect-src 'self' ws: wss:; base-uri 'self'; form-action 'self';"
     },
     proxy: {
       '/api': {
-        target: 'http://localhost:3001',
+        target: 'http://localhost:5000',
         changeOrigin: true,
       },
     },

@@ -40,7 +40,66 @@ export function useApi<T>(
   const cacheRef = useRef<{ data: T | null; timestamp: number; staleTime: number } | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   
+  // Helper function to get mock data based on URL pattern
+  const getMockDataForUrl = async (path: string): Promise<any> => {
+    if (path.includes('/api/teams') || path.includes('/api/football/teams')) {
+      return await MockDataProvider.getTeams();
+    } else if (path.includes('/api/leagues')) {
+      return await MockDataProvider.getLeagues();
+    } else if (path.includes('/api/fixtures/live')) {
+      return await MockDataProvider.getLiveFixtures();
+    } else if (path.includes('/api/football/fixtures')) {
+      const fixtures = await MockDataProvider.getAllFixtures();
+      const teams = await MockDataProvider.getTeams();
+      const teamMap = new Map();
+      teams.forEach(team => teamMap.set(team.id, team));
+      
+      return { 
+        response: fixtures.map(f => ({
+          fixture: {
+            id: f.id,
+            date: f.date,
+            status: { short: f.status },
+            venue: { name: f.venue || 'Local Stadium' },
+          },
+          teams: {
+            home: { id: f.homeTeamId, name: teamMap.get(f.homeTeamId)?.name || 'Home Team' },
+            away: { id: f.awayTeamId, name: teamMap.get(f.awayTeamId)?.name || 'Away Team' }
+          },
+          goals: { home: f.homeScore, away: f.awayScore },
+          league: { id: f.leagueId, round: f.round || 'Regular Season' }
+        }))
+      };
+    } else if (path.includes('/api/standings')) {
+      return await MockDataProvider.getStandings();
+    } else if (path.includes('/api/stats')) {
+      return await MockDataProvider.getStats();
+    } else if (path.includes('/api/predictions/telemetry')) {
+      const fixtureIdsMatch = path.match(/fixtureids=([\d,]+)/);
+      const fixtureIds = fixtureIdsMatch ? fixtureIdsMatch[1].split(',').map(id => parseInt(id, 10)).filter(id => !Number.isNaN(id)) : undefined;
+      return await MockDataProvider.getPredictionTelemetry(fixtureIds);
+    } else if (path.includes('/api/predictions/')) {
+      const fixtureIdMatch = path.match(/\/api\/predictions\/(\d+)/);
+      if (fixtureIdMatch) {
+        const fixtureId = parseInt(fixtureIdMatch[1]);
+        return await MockDataProvider.getPrediction(fixtureId);
+      }
+      return {};
+    } else {
+      return path.includes('leagues') || path.includes('fixtures') || 
+             path.includes('teams') || path.includes('standings') ? [] : {};
+    }
+  };
+  
   const fetchData = async (attempt = 1, skipCache = false): Promise<void> => {
+    // Prevent retry storms - if already in offline mode and multiple retries failed, use mock data
+    if (attempt > 2 && MockDataProvider.isOfflineMode()) {
+      setState(prev => ({ ...prev, loading: true, error: null }));
+      const mockData = await getMockDataForUrl(url.toLowerCase());
+      setState({ data: mockData as T, loading: false, error: null });
+      return;
+    }
+    
     try {
       // Get lowercase URL for consistent path matching
       const path = url.toLowerCase();
@@ -137,7 +196,8 @@ export function useApi<T>(
       try {
         const inTest = isTestEnv();
         const controller = inTest ? null : new AbortController();
-        const timeoutId = inTest ? null : setTimeout(() => controller!.abort(), 10000); // 10 second timeout for better reliability
+        // Reduced timeout to 8 seconds with better error handling
+        const timeoutId = inTest ? null : setTimeout(() => controller!.abort(), 8000);
         
         const response = inTest
           ? await fetch(url)
@@ -145,6 +205,24 @@ export function useApi<T>(
         if (timeoutId) clearTimeout(timeoutId as unknown as number);
         
         if (!response.ok) {
+          // Handle rate limiting (429) - use cached data, don't retry
+          if (response.status === 429) {
+            if (cacheRef.current?.data) {
+              console.info(`Rate limit hit for ${url}, using cached data`);
+              setState({ data: cacheRef.current.data, loading: false, error: null });
+              return;
+            }
+            // If no cache, use safe defaults
+            let safe: any = {};
+            const path = url.toLowerCase();
+            if (path.includes('/fixtures') || path.includes('/teams') || path.includes('/leagues') || path.includes('/standings')) {
+              safe = [];
+            }
+            console.warn(`Rate limit hit for ${url}, no cached data available`);
+            setState({ data: safe as T, loading: false, error: null });
+            return;
+          }
+          
           if (response.status === 502 && retry && attempt <= maxRetries) {
             // Retry on 502 errors with exponential backoff
             setTimeout(() => {
@@ -182,28 +260,39 @@ export function useApi<T>(
         setState({ data, loading: false, error: null });
       } catch (error: any) {
         if (error instanceof DOMException && error.name === 'AbortError') {
-          console.warn(`API request to ${url} timed out after 10s, switching to offline mode`);
-          localStorage.setItem('serverStatus', 'offline');
-          window.isServerOffline = true;
-          window.dispatchEvent(new Event('serverStatusChange'));
-          if (retry && attempt <= maxRetries) {
+          // Only switch to offline mode after multiple attempts to prevent flapping
+          if (attempt >= 2) {
+            // Debounced offline mode switching
+            if (attempt === 2) {
+              console.warn(`API request to ${url} timed out after multiple attempts, using offline mode`);
+              localStorage.setItem('serverStatus', 'offline');
+              window.isServerOffline = true;
+              window.dispatchEvent(new Event('serverStatusChange'));
+            }
+            // Use mock data instead of retrying indefinitely
+            const mockData = await getMockDataForUrl(path);
+            setState({ data: mockData as T, loading: false, error: null });
+            return;
+          }
+          // First attempt failed - retry once more before giving up
+          if (retry && attempt < 2) {
             setTimeout(() => {
               fetchData(attempt + 1);
-            }, retryDelay * Math.pow(2, attempt - 1));
+            }, 1500); // Fixed 1.5s delay instead of exponential
           }
           return;
         }
 
         if (error instanceof Error && (error.message.includes('fetch') || error.message.includes('network'))) {
-          console.warn(`API request to ${url} failed with network error, switching to offline mode`);
-          localStorage.setItem('serverStatus', 'offline');
-          window.isServerOffline = true;
-          window.dispatchEvent(new Event('serverStatusChange'));
-          if (retry && attempt <= maxRetries) {
-            setTimeout(() => {
-              fetchData(attempt + 1);
-            }, retryDelay * Math.pow(2, attempt - 1));
+          // Network error - switch to offline mode immediately
+          if (attempt === 1) {
+            console.warn(`Network error for ${url}, using offline mode`);
+            localStorage.setItem('serverStatus', 'offline');
+            window.isServerOffline = true;
+            window.dispatchEvent(new Event('serverStatusChange'));
           }
+          const mockData = await getMockDataForUrl(path);
+          setState({ data: mockData as T, loading: false, error: null });
           return;
         }
 
@@ -223,19 +312,17 @@ export function useApi<T>(
 
     fetchData();
     
-    // Set up refresh interval if specified
-    const cacheConfig = getCacheConfig(url.split('/'));
-    const interval = refreshInterval || cacheConfig.refetchInterval;
-    
-    if (!disabled && interval && typeof interval === 'number') {
-      intervalRef.current = setInterval(() => {
-        fetchData(1, true); // Skip cache on interval refresh
-      }, interval);
-    }
+    // DISABLED: Auto-refresh intervals to prevent constant reloading
+    // Refresh should be triggered manually or by user interaction
+    // const cacheConfig = getCacheConfig(url.split('/'));
+    // const interval = refreshInterval || cacheConfig.refetchInterval;
     
     // Listen for server status changes
     const handleServerStatusChange = () => {
-      fetchData(1, true); // Refetch with new server status
+      // Only refetch if going back online
+      if (!MockDataProvider.isOfflineMode()) {
+        fetchData(1, true); // Refetch with new server status
+      }
     };
     
     if (!disabled) {
@@ -252,7 +339,7 @@ export function useApi<T>(
         window.removeEventListener('serverStatusChange', handleServerStatusChange);
       }
     };
-  }, [url, refreshInterval, disabled]);
+  }, [url, disabled]);
   
   const refetch = () => {
     if (disabled) return;

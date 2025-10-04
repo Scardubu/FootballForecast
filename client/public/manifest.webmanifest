@@ -1,16 +1,9 @@
 {
-  "name": "SabiScore – Football Forecast & Analytics",
+  "name": "SabiScore - Football Forecast & Analytics",
   "short_name": "SabiScore",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0b1220",
   "theme_color": "#0ea5e9",
-  "icons": [
-    {
-      "src": "/favicon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
-      "purpose": "any"
-    }
-  ]
+  "description": "AI-powered football predictions and analytics"
 }

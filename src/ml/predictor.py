@@ -46,13 +46,13 @@ class FootballPredictor:
                     self.feature_names = json.load(f)
                 
                 self.is_trained = True
-                print(f"✅ Loaded trained model: {self.model_version}")
+                print(f"[OK] Loaded trained model: {self.model_version}")
             else:
-                print("ℹ️ No trained model found - will train on first prediction request")
+                print("[INFO] No trained model found - will train on first prediction request")
                 self._create_bootstrap_model()
                 
         except Exception as e:
-            print(f"⚠️ Model loading failed: {e}")
+            print(f"[WARNING] Model loading failed: {e}")
             self._create_bootstrap_model()
     
     def _create_bootstrap_model(self):
@@ -141,7 +141,7 @@ class FootballPredictor:
             }
             
         except Exception as e:
-            print(f"❌ Prediction failed: {e}")
+            print(f"[ERROR] Prediction failed: {e}")
             return self._fallback_prediction(fixture_id, home_team_id, away_team_id)
     
     def _features_to_array(self, features: Dict) -> np.ndarray:
@@ -186,7 +186,7 @@ class FootballPredictor:
             best_temp, _ = self._optimize_temperature(probabilities, y_cal)
             self.temperature = float(best_temp)
         except Exception as error:
-            print(f"⚠️ Calibration failed: {error}")
+            print(f"[WARNING] Calibration failed: {error}")
             self.temperature = 1.0
 
     def _optimize_temperature(self, probabilities: np.ndarray, labels: np.ndarray) -> Tuple[float, float]:
@@ -339,7 +339,7 @@ class FootballPredictor:
     def train_model(self, start_date: str, end_date: str, retrain: bool = True) -> bool:
         """Train the ML model on historical data"""
         try:
-            print(f"🏋️ Starting model training: {start_date} to {end_date}")
+            print(f"[TRAINING] Starting model training: {start_date} to {end_date}")
             
             # For now, create a simple trained model
             # In production, this would load actual historical data
@@ -377,11 +377,11 @@ class FootballPredictor:
             # Save the trained model
             self._save_model()
             
-            print(f"✅ Model training completed successfully")
+            print(f"[OK] Model training completed successfully")
             return True
             
         except Exception as e:
-            print(f"❌ Model training failed: {e}")
+            print(f"[ERROR] Model training failed: {e}")
             return False
     
     def _save_model(self):
@@ -401,9 +401,9 @@ class FootballPredictor:
                     "method": self.calibration_method,
                     "last_updated": datetime.now().isoformat()
                 }, f)
-            print(f"💾 Model saved to {model_file}")
+            print(f"[SAVED] Model saved to {model_file}")
         except Exception as e:
-            print(f"⚠️ Model saving failed: {e}")
+            print(f"[WARNING] Model saving failed: {e}")
 
     
     def get_model_status(self) -> Dict:

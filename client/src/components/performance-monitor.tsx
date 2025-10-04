@@ -13,8 +13,11 @@ interface PerformanceMetrics {
 
 export function PerformanceMonitor() {
   useEffect(() => {
-    // Only run in production
-    if (process.env.NODE_ENV !== 'production') return;
+    // Only run in production to avoid console noise in development
+    if (process.env.NODE_ENV !== 'production') {
+      // Silently skip in development
+      return;
+    }
 
     const collectMetrics = () => {
       const metrics: PerformanceMetrics = {};
@@ -88,12 +91,12 @@ export function PerformanceMonitor() {
       });
     }
 
-    // Monitor for performance issues
+    // Monitor for performance issues (production only)
     const observer = new PerformanceObserver((list) => {
       const entries = list.getEntries();
       entries.forEach((entry) => {
-        // Log slow resources
-        if (entry.entryType === 'resource' && entry.duration > 1000) {
+        // Log slow resources (only critical ones > 3s)
+        if (entry.entryType === 'resource' && entry.duration > 3000) {
           console.warn('🐌 Slow resource detected:', {
             name: entry.name,
             duration: Math.round(entry.duration),
@@ -101,12 +104,15 @@ export function PerformanceMonitor() {
           });
         }
         
-        // Log layout shifts (CLS)
+        // Log significant layout shifts only (CLS > 0.1)
         if (entry.entryType === 'layout-shift' && !(entry as any).hadRecentInput) {
-          console.warn('📐 Layout shift detected:', {
-            value: (entry as any).value,
-            sources: (entry as any).sources?.map((s: any) => s.node),
-          });
+          const value = (entry as any).value;
+          if (value > 0.1) {
+            console.warn('📐 Significant layout shift detected:', {
+              value,
+              sources: (entry as any).sources?.map((s: any) => s.node),
+            });
+          }
         }
       });
     });

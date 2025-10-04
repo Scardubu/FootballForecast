@@ -172,8 +172,35 @@ export const insertScrapedDataSchema = createInsertSchema(scrapedData).omit({
   id: true,
   createdAt: true,
 }).extend({
-  source: z.enum(["fbref", "whoscored", "api-football", "default"]),
-  dataType: z.enum(["match_stats", "team_ratings", "match_insights", "team_form", "xg_data"]),
+  // Extend allowed sources to support hybrid ingestion
+  source: z.enum([
+    "fbref",
+    "whoscored",
+    "api-football",
+    "default",
+    // New sources
+    "oddsportal",
+    "oddschecker",
+    "physioroom",
+    "transfermarkt",
+    "bbc",
+    "sky",
+    "openweather",
+    "official"
+  ]),
+  // Extend data types for new signal categories
+  dataType: z.enum([
+    "match_stats",
+    "team_ratings",
+    "match_insights",
+    "team_form",
+    "xg_data",
+    // New data types
+    "odds",
+    "injuries",
+    "team_news",
+    "weather"
+  ]),
   data: z.record(z.unknown()).refine((val) => Object.keys(val).length > 0, {
     message: "Data object cannot be empty"
   }),

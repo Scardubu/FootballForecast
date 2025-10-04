@@ -25,10 +25,13 @@ export function PredictionsPanel() {
   const { selectedLeague, selectedSeason } = useLeagueStore();
 
   const { data: fixturesData, loading: fixturesLoading, error: fixturesError, refetch: refetchFixtures } = 
-    useApi<FixtureResponse>(`/api/football/fixtures?league=${selectedLeague}&season=${selectedSeason}`, { retry: true });
+    useApi<FixtureResponse>(
+      `/api/football/fixtures?league=${selectedLeague}&season=${selectedSeason}`, 
+      { retry: false, enableCache: true, maxRetries: 1 }
+    );
     
   const { data: teamsData, error: teamsError } = 
-    useApi<TeamsResponse>("/api/football/teams", { retry: true });
+    useApi<TeamsResponse>("/api/football/teams", { retry: false, enableCache: true, maxRetries: 1 });
 
   // Extract the fixtures and filter for upcoming matches
   const fixtures = fixturesData?.response
@@ -46,8 +49,9 @@ export function PredictionsPanel() {
   // FIXED: Always call useApi hook unconditionally
   const { data: predictionsTelemetry } = useApi<Record<number, Prediction | undefined>>(telemetryEndpoint, {
     retry: false,
-    enableCache: false,
+    enableCache: true,
     disabled: !fixtureIdsParam, // Use disabled option instead of conditional hook
+    maxRetries: 1,
   });
 
   // Get team data helper function
@@ -55,25 +59,7 @@ export function PredictionsPanel() {
     return teamsData?.response?.find((t) => t.team.id === teamId)?.team;
   };
 
-  // Error handling
-  const error = fixturesError || teamsError;
-  if (error) {
-    return <ErrorFallback error={new Error(error)} resetError={refetchFixtures} />;
-  }
-
-  // Loading state
-  if (fixturesLoading) {
-    return (
-      <div className="animate-fade-in">
-        <Grid cols={{ base: 1 }} gap={6}>
-          {[...Array(2)].map((_, i) => (
-            <PredictionCardSkeleton key={i} />
-          ))}
-        </Grid>
-      </div>
-    );
-  }
-
+  // FIXED: Calculate telemetry summary BEFORE any early returns (Rules of Hooks)
   const telemetrySummary = useMemo(() => {
     if (!Array.isArray(fixtures) || !predictionsTelemetry) {
       return null;
@@ -104,6 +90,25 @@ export function PredictionsPanel() {
       fallbackCount,
     };
   }, [fixtures, predictionsTelemetry]);
+
+  // Error handling - AFTER all hooks
+  const error = fixturesError || teamsError;
+  if (error) {
+    return <ErrorFallback error={new Error(error)} resetError={refetchFixtures} />;
+  }
+
+  // Loading state - AFTER all hooks
+  if (fixturesLoading) {
+    return (
+      <div className="animate-fade-in">
+        <Grid cols={{ base: 1 }} gap={6}>
+          {[...Array(2)].map((_, i) => (
+            <PredictionCardSkeleton key={i} />
+          ))}
+        </Grid>
+      </div>
+    );
+  }
 
   return (
     <ErrorBoundary>

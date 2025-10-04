@@ -230,7 +230,7 @@ export default function Dashboard() {
           {/* Overview Tab */}
           <TabsContent value="overview" className="space-y-6">
             <Section title="Live Matches" description="Real-time match updates and scores">
-              <LazyWrapper>
+              <LazyWrapper minHeight="250px">
                 <LazyLiveMatches />
               </LazyWrapper>
             </Section>
@@ -238,7 +238,7 @@ export default function Dashboard() {
             <Grid cols={{ base: 1, lg: 3 }} gap={8}>
               <div className="lg:col-span-2 space-y-6">
                 <Section title="AI Predictions" description="Model-driven forecasts with confidence">
-                  <LazyWrapper>
+                  <LazyWrapper minHeight="400px">
                     <LazyPredictionsPanel />
                   </LazyWrapper>
                 </Section>
@@ -246,12 +246,12 @@ export default function Dashboard() {
 
               <div className="space-y-6">
                 <Section title="Standings" description="League table and team form">
-                  <LazyWrapper>
+                  <LazyWrapper minHeight="500px">
                     <LazyLeagueStandings />
                   </LazyWrapper>
                 </Section>
                 <Section title="Quick Stats" description="At-a-glance metrics">
-                  <LazyWrapper>
+                  <LazyWrapper minHeight="200px">
                     <LazyQuickStats />
                   </LazyWrapper>
                 </Section>

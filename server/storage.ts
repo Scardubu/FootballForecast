@@ -319,19 +319,27 @@ const databaseUrl = process.env.DATABASE_URL?.trim();
 const disableDatabase = (process.env.DISABLE_DATABASE_STORAGE || '').toLowerCase() === 'true';
 const usingDatabase = !!databaseUrl && !disableDatabase;
 
-let storage: IStorage;
+let storage: IStorage = new MemStorage();
 
-if (usingDatabase) {
-  try {
-    storage = new DatabaseStorage();
-    console.log('Using Database storage');
-  } catch (error) {
-    console.warn('Failed to initialize Database storage, falling back to Memory storage:', (error as Error).message);
-    storage = new MemStorage();
+const storageReady = (async () => {
+  if (usingDatabase) {
+    try {
+      storage = await DatabaseStorage.create();
+      console.log('[OK] Using Database storage');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn('[WARN] Failed to initialize Database storage, falling back to Memory storage:', message);
+      console.log('[OK] Using Memory storage (database initialization failed)');
+    }
+  } else {
+    console.log('[OK] Using Memory storage (no DATABASE_URL or explicitly disabled)');
   }
-} else {
-  storage = new MemStorage();
-  console.log('Using Memory storage (no DATABASE_URL or explicitly disabled)');
-}
 
+  return storage;
+})();
+
+// Export storageReady promise for modules that need to wait
+export { storageReady };
+
+// Export live binding to storage instance
 export { storage };

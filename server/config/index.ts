@@ -14,6 +14,11 @@ interface ApiConfig {
 interface AuthConfig {
   bearerToken: string;
   scraperToken: string;
+  stackAuth: {
+    projectId: string;
+    jwksUrl: string;
+    apiUrl: string;
+  };
 }
 
 interface ServerConfig {
@@ -136,7 +141,7 @@ function loadConfig(): AppConfig {
       );
     }
     const apiKey = apiKeyValue.trim();
-    console.log('✅ API_FOOTBALL_KEY found in environment');
+    console.log('[OK] API_FOOTBALL_KEY found in environment');
     
     const validatedApiKey = validateApiKey(apiKey, 'API-Football API key');
     
@@ -147,9 +152,9 @@ function loadConfig(): AppConfig {
         getRequiredEnv('API_BEARER_TOKEN', 'API Bearer token for authentication'),
         'API_BEARER_TOKEN'
       );
-      console.log('✅ API_BEARER_TOKEN found in environment');
+      console.log('[OK] API_BEARER_TOKEN found in environment');
     } catch (error) {
-      console.error('🔴 Missing or invalid API_BEARER_TOKEN');
+      console.error('[ERROR] Missing or invalid API_BEARER_TOKEN');
       console.error('Please check your .env file and ensure API_BEARER_TOKEN is properly configured.');
       throw error;
     }
@@ -160,12 +165,22 @@ function loadConfig(): AppConfig {
         getRequiredEnv('SCRAPER_AUTH_TOKEN', 'Scraper authentication token'),
         'SCRAPER_AUTH_TOKEN'
       );
-      console.log('✅ SCRAPER_AUTH_TOKEN found in environment');
+      console.log('[OK] SCRAPER_AUTH_TOKEN found in environment');
     } catch (error) {
-      console.error('🔴 Missing or invalid SCRAPER_AUTH_TOKEN');
+      console.error('[ERROR] Missing or invalid SCRAPER_AUTH_TOKEN');
       console.error('Please check your .env file and ensure SCRAPER_AUTH_TOKEN is properly configured.');
       throw error;
     }
+    
+    // Stack Auth configuration
+    const stackAuthProjectId = getOptionalEnv('STACK_AUTH_PROJECT_ID', '8b0648c2-f267-44c1-b4c2-a64eccb6f737');
+    const stackAuthJwksUrl = getOptionalEnv(
+      'STACK_AUTH_JWKS_URL', 
+      `https://api.stack-auth.com/api/v1/projects/${stackAuthProjectId}/.well-known/jwks.json`
+    );
+    const stackAuthApiUrl = getOptionalEnv('STACK_AUTH_API_URL', 'https://api.stack-auth.com');
+    
+    console.log('[OK] Stack Auth configuration loaded');
     
     // Server configuration
     const port = parseInt(getOptionalEnv('PORT', '5000'), 10);
@@ -184,6 +199,11 @@ function loadConfig(): AppConfig {
       auth: {
         bearerToken,
         scraperToken,
+        stackAuth: {
+          projectId: stackAuthProjectId,
+          jwksUrl: stackAuthJwksUrl,
+          apiUrl: stackAuthApiUrl,
+        },
       },
       server: {
         port,

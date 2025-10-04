@@ -7,13 +7,15 @@ import type { Request, Response } from 'express';
 import logger from './logger.js';
 
 /**
- * General API rate limiter - 100 requests per 15 minutes per IP
+ * General API rate limiter - 300 requests per 15 minutes per IP (relaxed for development)
  */
 export const generalRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
+  max: 300, // Increased from 100 to 300 for better development experience
   standardHeaders: true, // Include rate limit info in headers
   legacyHeaders: false, // Disable X-RateLimit-* headers
+  skipSuccessfulRequests: false, // Count all requests
+  skipFailedRequests: false, // Count failed requests too
   skip: (req: Request) => {
     const p = req.path || '';
     // Skip health checks in both direct server and Netlify function contexts

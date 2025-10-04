@@ -3,6 +3,9 @@
  */
 
 import { useEffect, useState } from 'react';
+import { createLogger } from './logger';
+
+const logger = createLogger('🔧 SW');
 
 interface ServiceWorkerStatus {
   supported: boolean;
@@ -82,7 +85,7 @@ class ServiceWorkerManager {
               this.updateStatus();
             }
           } catch (lookupError) {
-            console.warn('Unable to inspect existing service worker registration', lookupError);
+            logger.warn('Unable to inspect existing registration', lookupError);
           }
         }
 
@@ -94,11 +97,11 @@ class ServiceWorkerManager {
         // Check initial state
         this.updateStatus();
 
-        console.log('✅ Service Worker registered successfully');
+        logger.info('Service Worker registered successfully');
         return this.snapshotStatus();
       } catch (error) {
         this.status.error = `Service Worker registration failed: ${error}`;
-        console.error('❌ Service Worker registration failed:', error);
+        logger.error('Service Worker registration failed', error);
         return this.snapshotStatus();
       } finally {
         this.registerPromise = null;
@@ -132,7 +135,7 @@ class ServiceWorkerManager {
 
     // Listen for controller changes
     navigator.serviceWorker.addEventListener('controllerchange', () => {
-      console.log('🔄 Service Worker controller changed');
+      logger.info('Service Worker controller changed - reloading');
       window.location.reload();
     });
 
@@ -160,7 +163,7 @@ class ServiceWorkerManager {
   }
 
   private handleMessage(data: any): void {
-    console.log('📨 Message from Service Worker:', data);
+    logger.debug('Message from Service Worker', data);
     this.emitStatus();
   }
 

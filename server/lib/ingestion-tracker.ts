@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import type { IngestionEvent, IngestionStatus, UpdateIngestionEvent } from "../../shared/schema.js";
-import { storage } from "../storage.js";
+import { storage, storageReady } from "../storage.js";
 import logger from "../middleware/logger.js";
 
 interface BeginIngestionOptions {
@@ -71,6 +71,9 @@ function toErrorMessage(error: unknown): string {
  * Begin tracking an ingestion event and return a context handle.
  */
 export async function beginIngestionEvent(options: BeginIngestionOptions): Promise<IngestionContext> {
+  // Wait for storage to be initialized
+  await storageReady;
+  
   const startedAt = new Date();
   const dedupeKey = options.dedupeKey ?? computeChecksum({
     source: options.source,

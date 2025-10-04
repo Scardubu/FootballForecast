@@ -333,7 +333,6 @@ async function updateStandings() {
       recordsWritten,
       metadata: {
         season,
-        recordsWritten,
         failedLeagues,
         fallbackLeagues,
         failureDetails,
@@ -463,7 +462,7 @@ async function updateFixtures() {
           );
         }
 
-        let fixturesData = fixturesResponse?.response?.map(f => {
+        let fixturesData: Fixture[] = fixturesResponse?.response?.map(f => {
           const rawFixture = f.fixture as Record<string, unknown> & {
             venue?: { name?: string | null };
           };
@@ -491,7 +490,7 @@ async function updateFixtures() {
             halftimeAwayScore: null,
             venue: venueName,
           } as Fixture;
-        });
+        }) ?? [];
 
         let fallbackUsed = false;
         if (fixturesData.length === 0) {
@@ -505,8 +504,6 @@ async function updateFixtures() {
             }));
             logger.warn(`Scheduler: using fallback fixtures for league ${league.id}.`);
           }
-        } else if (!Array.isArray(fixturesData)) {
-          fixturesData = [];
         }
 
         if (fixturesData.length === 0) {
@@ -680,7 +677,6 @@ async function updateFixtures() {
       recordsWritten,
       metadata: {
         date: dateParam,
-        recordsWritten,
         failedLeagues,
         fallbackLeagues,
         failureDetails,

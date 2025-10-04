@@ -9,6 +9,8 @@
 import type { APIFixture, APITeamData, APIPrediction, APIStanding } from "./api-football-types";
 import type { Prediction } from "@shared/schema";
 import { measureAsync } from "./performance";
+import { apiCache } from "./api-cache";
+import { envConfig } from "./env-config";
 
 export interface APIFootballResponse<T> {
   get: string;
@@ -24,11 +26,25 @@ export interface APIFootballResponse<T> {
 
 const handleResponse = async <T>(response: Response): Promise<T> => {
   if (!response.ok) {
+    // Special handling for 404 on prediction endpoints
+    if (response.status === 404 && response.url.includes('/api/predictions/')) {
+      console.warn(`Resource not found: ${response.url} - Using fallback data`);
+      // For prediction endpoints, 404s will be handled by the server with fallbacks
+      // Retry the request once - the server-side fallback should handle it
+      const fixtureId = response.url.split('/').pop();
+      if (fixtureId) {
+        console.info(`Retrying prediction request for fixture: ${fixtureId}`);
+        // We'll let the caller handle retries instead of doing it here
+        throw new Error(`Prediction not found for fixture: ${fixtureId}`);
+      }
+    }
+    
     if (response.status === 401) {
       // This error can be caught by a global error handler or React Query's `onError`
       // to trigger a redirect to the login page.
       throw new Error('Authentication required. Please log in.');
     }
+    
     // Attempt to parse error details from the body
     const errorBody = await response.json().catch(() => null);
     const errorMessage = errorBody?.error || `API Error: ${response.status} ${response.statusText}`;
@@ -41,13 +57,26 @@ export const apiClient = {
   /**
    * A generic method for making authenticated requests to any backend endpoint.
    * It automatically handles session cookies and response parsing.
+   * Includes intelligent caching for GET requests.
    * @param endpoint The API endpoint to call (e.g., 'fixtures/live').
    * @param options Optional RequestInit options.
+   * @param cacheTTL Optional cache TTL in milliseconds (overrides default).
    * @returns The parsed JSON response.
    */
-  async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
+  async request<T>(endpoint: string, options?: RequestInit, cacheTTL?: number): Promise<T> {
+    const url = `/api/${endpoint}`;
+    const method = options?.method || 'GET';
+
+    // Check cache for GET requests
+    if (method === 'GET') {
+      const cached = apiCache.get<T>(url, options);
+      if (cached !== null) {
+        return cached;
+      }
+    }
+
     return measureAsync(`api-${endpoint}`, async () => {
-      const response = await fetch(`/api/${endpoint}`, {
+      const response = await fetch(url, {
         ...options,
         credentials: 'include', // Ensures session cookies are sent
         headers: {
@@ -55,7 +84,15 @@ export const apiClient = {
           ...options?.headers,
         },
       });
-      return handleResponse<T>(response);
+      
+      const data = await handleResponse<T>(response);
+
+      // Cache successful GET requests
+      if (method === 'GET' && response.ok) {
+        apiCache.set(url, data, options, cacheTTL);
+      }
+
+      return data;
     });
   },
 
@@ -113,7 +150,21 @@ export const apiClient = {
    */
   getPredictions: function(fixtureId: number) {
     // This endpoint returns a custom prediction object, not the direct API-Football prediction response
-    return this.request<Prediction>(`predictions/${fixtureId}`);
+    return this.request<Prediction>(`predictions/${fixtureId}`, undefined, 600000) // 10 minute cache TTL
+      .catch(error => {
+        // Fallback to telemetry endpoint if a specific prediction fails
+        console.warn(`Failed to get prediction for fixture ${fixtureId}: ${error.message}. Trying telemetry fallback.`);
+        
+        // Try to get the prediction from telemetry as a fallback
+        return this.getPredictionTelemetry([fixtureId]).then(telemetry => {
+          const prediction = telemetry[fixtureId];
+          if (prediction) {
+            console.info(`Successfully retrieved prediction for fixture ${fixtureId} from telemetry`);
+            return prediction;
+          }
+          throw new Error(`No prediction found for fixture ${fixtureId}`);
+        });
+      });
   },
 
   /**

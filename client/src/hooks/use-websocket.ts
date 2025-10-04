@@ -229,30 +229,34 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
         
         onDisconnect?.();
 
-        // Always attempt to reconnect in development mode,
-        // with a more aggressive strategy to handle proxy issues
+        // Limit reconnection attempts to prevent spam
         const isDevelopment = import.meta.env.DEV === true;
+        const maxAttempts = isDevelopment ? 5 : maxReconnectAttempts; // Cap at 5 attempts even in dev
         
-        if (reconnect && (isDevelopment || reconnectAttemptsRef.current < maxReconnectAttempts) && !event.wasClean) {
+        if (reconnect && reconnectAttemptsRef.current < maxAttempts && !event.wasClean) {
           reconnectAttemptsRef.current++;
           setConnectionStats(prev => ({ 
             ...prev, 
             reconnectAttempts: reconnectAttemptsRef.current 
           }));
           
-          // Use a shorter initial retry for development environment
-          const retryDelay = isDevelopment 
-            ? Math.min(1000, reconnectInterval) // Quick first retry
-            : reconnectInterval * reconnectAttemptsRef.current; // Exponential backoff in production
+          // Exponential backoff with minimum 3 second delay to prevent spam
+          const retryDelay = Math.min(
+            Math.max(3000, reconnectInterval * Math.pow(2, reconnectAttemptsRef.current - 1)),
+            30000 // Cap at 30 seconds
+          );
           
           if (process.env.NODE_ENV === 'development') {
-            console.log(`🔄 Attempting to reconnect (${reconnectAttemptsRef.current}/${isDevelopment ? 'unlimited' : maxReconnectAttempts})...`);
+            console.log(`🔄 Attempting to reconnect (${reconnectAttemptsRef.current}/${maxAttempts})...`);
             console.log(`🕒 Will retry in ${retryDelay}ms`);
           }
           
           reconnectTimeoutRef.current = setTimeout(() => {
             connect();
           }, retryDelay);
+        } else if (reconnectAttemptsRef.current >= maxAttempts) {
+          console.warn('⚠️ WebSocket reconnection limit reached. Live updates disabled.');
+          setError('WebSocket connection failed after multiple attempts');
         }
       };
 
@@ -346,13 +350,27 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
 
   // Connect once on mount, disconnect only on unmount
   useEffect(() => {
-    // Only attempt WebSocket connection in development mode
+    // Only attempt WebSocket connection in development mode AND if server is likely running
     const isDevelopment = import.meta.env.DEV === true;
+    const serverOffline = localStorage.getItem('serverStatus') === 'offline';
 
-    if (isDevelopment) {
-      connect();
+    if (isDevelopment && !serverOffline) {
+      // Delay initial connection to allow server to fully start
+      const connectionTimeout = setTimeout(() => {
+        connect();
+      }, 2000); // 2 second delay
+      
+      return () => {
+        clearTimeout(connectionTimeout);
+        disconnect();
+      };
     } else {
-      console.log("Live updates via WebSockets are disabled in this environment.");
+      if (process.env.NODE_ENV === 'development') {
+        console.log(serverOffline 
+          ? "⚠️ Server appears offline, skipping WebSocket connection" 
+          : "Live updates via WebSockets are disabled in this environment."
+        );
+      }
       setError('Live updates are not available in this environment.');
     }
 

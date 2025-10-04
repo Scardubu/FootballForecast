@@ -9,16 +9,71 @@ import {
   type IngestionEvent, type InsertIngestionEvent, type UpdateIngestionEvent
 } from "../shared/schema.js";
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
-const db = drizzle(pool);
-
 export class DatabaseStorage implements IStorage {
+  private readonly pool: Pool;
+  private readonly db: ReturnType<typeof drizzle>;
+
+  private constructor(pool: Pool) {
+    this.pool = pool;
+    this.db = drizzle(pool);
+  }
+
+  static async create(): Promise<DatabaseStorage> {
+    const connectionString = process.env.DATABASE_URL;
+
+    if (!connectionString) {
+      throw new Error('DATABASE_URL is required to use DatabaseStorage');
+    }
+
+    const pool = new Pool({
+      connectionString,
+      connectionTimeoutMillis: 30_000,  // Increased to 30s for cloud databases
+      idleTimeoutMillis: 30_000,
+      max: 10,
+      ssl: {
+        rejectUnauthorized: false
+      },
+      // Add keepalive to prevent connection drops
+      keepAlive: true,
+      keepAliveInitialDelayMillis: 10_000
+    });
+
+    try {
+      const client = await pool.connect();
+      try {
+        await client.query('SELECT 1');
+      } finally {
+        client.release();
+      }
+      return new DatabaseStorage(pool);
+    } catch (error) {
+      await pool.end().catch(() => {});
+      throw error;
+    }
+  }
+
+  async healthCheck(): Promise<boolean> {
+    try {
+      const client = await this.pool.connect();
+      try {
+        await client.query('SELECT 1');
+        return true;
+      } finally {
+        client.release();
+      }
+    } catch (error) {
+      console.error('Database connection health check failed:', error);
+      return false;
+    }
+  }
+
+  async close(): Promise<void> {
+    await this.pool.end();
+  }
   
   async getUser(id: string): Promise<User | undefined> {
     try {
-      const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
+      const result = await this.db.select().from(users).where(eq(users.id, id)).limit(1);
       return result[0];
     } catch (error) {
       console.error('Database error in getUser:', error);
@@ -27,19 +82,19 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    const result = await db.select().from(users).where(eq(users.username, username)).limit(1);
+    const result = await this.db.select().from(users).where(eq(users.username, username)).limit(1);
     return result[0];
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const result = await db.insert(users).values(insertUser).returning();
+    const result = await this.db.insert(users).values(insertUser).returning();
     return result[0];
   }
 
   // Football data methods
   async getLeagues(): Promise<League[]> {
     try {
-      return await db.select().from(leagues).orderBy(leagues.name);
+      return await this.db.select().from(leagues).orderBy(leagues.name);
     } catch (error) {
       console.error('Database error in getLeagues:', error);
       return [];
@@ -47,12 +102,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getLeague(id: number): Promise<League | undefined> {
-    const result = await db.select().from(leagues).where(eq(leagues.id, id)).limit(1);
+    const result = await this.db.select().from(leagues).where(eq(leagues.id, id)).limit(1);
     return result[0];
   }
 
   async updateLeague(league: League): Promise<League> {
-    const inserted = await db.insert(leagues)
+    const inserted = await this.db.insert(leagues)
       .values(league)
       .onConflictDoUpdate({
         target: leagues.id,
@@ -72,7 +127,7 @@ export class DatabaseStorage implements IStorage {
   async updateLeagues(leagueArray: League[]): Promise<League[]> {
     if (leagueArray.length === 0) return [];
     
-    const inserted = await db.insert(leagues)
+    const inserted = await this.db.insert(leagues)
       .values(leagueArray)
       .onConflictDoUpdate({
         target: leagues.id,
@@ -91,7 +146,7 @@ export class DatabaseStorage implements IStorage {
 
   async getTeams(): Promise<Team[]> {
     try {
-      return await db.select().from(teams).orderBy(teams.name);
+      return await this.db.select().from(teams).orderBy(teams.name);
     } catch (error) {
       console.error('Database error in getTeams:', error);
       return [];
@@ -99,12 +154,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getTeam(id: number): Promise<Team | undefined> {
-    const result = await db.select().from(teams).where(eq(teams.id, id)).limit(1);
+    const result = await this.db.select().from(teams).where(eq(teams.id, id)).limit(1);
     return result[0];
   }
 
   async updateTeam(team: Team): Promise<Team> {
-    const inserted = await db.insert(teams)
+    const inserted = await this.db.insert(teams)
       .values(team)
       .onConflictDoUpdate({
         target: teams.id,
@@ -124,7 +179,7 @@ export class DatabaseStorage implements IStorage {
   async updateTeams(teamArray: Team[]): Promise<Team[]> {
     if (teamArray.length === 0) return [];
     
-    const inserted = await db.insert(teams)
+    const inserted = await this.db.insert(teams)
       .values(teamArray)
       .onConflictDoUpdate({
         target: teams.id,
@@ -142,31 +197,31 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getLiveFixtures(): Promise<Fixture[]> {
-    return await db.select().from(fixtures)
+    return await this.db.select().from(fixtures)
       .where(inArray(fixtures.status, ['LIVE', '1H', '2H']))
       .orderBy(desc(fixtures.date));
   }
 
   async getFixtures(leagueId?: number): Promise<Fixture[]> {
     if (leagueId) {
-      return await db.select().from(fixtures)
+      return await this.db.select().from(fixtures)
         .where(eq(fixtures.leagueId, leagueId))
         .orderBy(desc(fixtures.date))
         .limit(100);
     }
     
-    return await db.select().from(fixtures)
+    return await this.db.select().from(fixtures)
       .orderBy(desc(fixtures.date))
       .limit(100);
   }
 
   async getFixture(id: number): Promise<Fixture | undefined> {
-    const result = await db.select().from(fixtures).where(eq(fixtures.id, id)).limit(1);
+    const result = await this.db.select().from(fixtures).where(eq(fixtures.id, id)).limit(1);
     return result[0];
   }
 
   async updateFixture(fixture: Fixture): Promise<Fixture> {
-    const inserted = await db.insert(fixtures)
+    const inserted = await this.db.insert(fixtures)
       .values(fixture)
       .onConflictDoUpdate({
         target: fixtures.id,
@@ -195,7 +250,7 @@ export class DatabaseStorage implements IStorage {
   async updateFixtures(fixtureArray: Fixture[]): Promise<Fixture[]> {
     if (fixtureArray.length === 0) return [];
     
-    const inserted = await db.insert(fixtures)
+    const inserted = await this.db.insert(fixtures)
       .values(fixtureArray)
       .onConflictDoUpdate({
         target: fixtures.id,
@@ -223,12 +278,12 @@ export class DatabaseStorage implements IStorage {
 
   async getPredictions(fixtureId?: number): Promise<Prediction[]> {
     if (fixtureId) {
-      return await db.select().from(predictions)
+      return await this.db.select().from(predictions)
         .where(eq(predictions.fixtureId, fixtureId))
         .orderBy(desc(predictions.createdAt));
     }
     
-    return await db.select().from(predictions)
+    return await this.db.select().from(predictions)
       .orderBy(desc(predictions.createdAt))
       .limit(100);
   }
@@ -236,7 +291,7 @@ export class DatabaseStorage implements IStorage {
   async updatePrediction(prediction: Prediction): Promise<Prediction> {
     // Since fixtureId is not guaranteed to be unique, we use the prediction ID as the conflict target.
     // A robust implementation would have a unique constraint on fixtureId.
-    const inserted = await db.insert(predictions)
+    const inserted = await this.db.insert(predictions)
       .values(prediction)
       .onConflictDoUpdate({
         target: predictions.id,
@@ -265,7 +320,7 @@ export class DatabaseStorage implements IStorage {
 
   async getStandings(leagueId: number): Promise<Standing[]> {
     try {
-      return await db.select().from(standings)
+      return await this.db.select().from(standings)
         .where(eq(standings.leagueId, leagueId))
         .orderBy(standings.position);
     } catch (error) {
@@ -277,7 +332,7 @@ export class DatabaseStorage implements IStorage {
   async updateStandings(standingsArray: Standing[]): Promise<Standing[]> {
     if (standingsArray.length === 0) return [];
 
-    const inserted = await db.insert(standings)
+    const inserted = await this.db.insert(standings)
       .values(standingsArray)
       .onConflictDoUpdate({
         target: [standings.leagueId, standings.teamId],
@@ -307,7 +362,7 @@ export class DatabaseStorage implements IStorage {
         conditions.push(eq(teamStats.leagueId, leagueId));
       }
       
-      const result = await db.select().from(teamStats).where(and(...conditions)).limit(1);
+      const result = await this.db.select().from(teamStats).where(and(...conditions)).limit(1);
       return result[0];
     } catch (error) {
       console.error('Database error in getTeamStats:', error);
@@ -316,7 +371,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateTeamStats(stats: TeamStats): Promise<TeamStats> {
-    const inserted = await db.insert(teamStats)
+    const inserted = await this.db.insert(teamStats)
       .values(stats)
       .onConflictDoUpdate({
         target: [teamStats.teamId, teamStats.leagueId],
@@ -342,7 +397,7 @@ export class DatabaseStorage implements IStorage {
       ...data,
       confidence: String(data.confidence ?? "0")
     };
-    const inserted = await db.insert(scrapedData).values([dataWithStringConfidence]).returning();
+    const inserted = await this.db.insert(scrapedData).values([dataWithStringConfidence]).returning();
     return inserted[0];
   }
   async getScrapedData(source?: string, dataType?: string, fixtureId?: number, teamId?: number): Promise<ScrapedData[]> {
@@ -354,17 +409,17 @@ export class DatabaseStorage implements IStorage {
     if (teamId) conditions.push(eq(scrapedData.teamId, teamId));
     
     if (conditions.length > 0) {
-      return await db.select().from(scrapedData).where(and(...conditions))
+      return await this.db.select().from(scrapedData).where(and(...conditions))
         .orderBy(desc(scrapedData.scrapedAt));
     }
     
-    return await db.select().from(scrapedData)
+    return await this.db.select().from(scrapedData)
       .orderBy(desc(scrapedData.scrapedAt))
       .limit(100);
   }
 
   async getLatestScrapedData(source: string, dataType: string): Promise<ScrapedData | undefined> {
-    const result = await db.select().from(scrapedData)
+    const result = await this.db.select().from(scrapedData)
       .where(and(
         eq(scrapedData.source, source),
         eq(scrapedData.dataType, dataType)
@@ -397,12 +452,12 @@ export class DatabaseStorage implements IStorage {
       updatedAt: event.updatedAt ?? startedAt
     };
 
-    const inserted = await db.insert(ingestionEvents).values(values).returning();
+    const inserted = await this.db.insert(ingestionEvents).values(values).returning();
     return inserted[0];
   }
 
   async updateIngestionEvent(id: string, update: UpdateIngestionEvent): Promise<IngestionEvent | undefined> {
-    const existing = await db.select().from(ingestionEvents).where(eq(ingestionEvents.id, id)).limit(1);
+    const existing = await this.db.select().from(ingestionEvents).where(eq(ingestionEvents.id, id)).limit(1);
     if (!existing[0]) {
       return undefined;
     }
@@ -433,7 +488,7 @@ export class DatabaseStorage implements IStorage {
       return existing[0];
     }
 
-    const updated = await db.update(ingestionEvents)
+    const updated = await this.db.update(ingestionEvents)
       .set(updateValues)
       .where(eq(ingestionEvents.id, id))
       .returning();
@@ -442,13 +497,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getIngestionEvent(id: string): Promise<IngestionEvent | undefined> {
-    const result = await db.select().from(ingestionEvents).where(eq(ingestionEvents.id, id)).limit(1);
+    const result = await this.db.select().from(ingestionEvents).where(eq(ingestionEvents.id, id)).limit(1);
     return result[0];
   }
 
   async getRecentIngestionEvents(limit: number = 20): Promise<IngestionEvent[]> {
     try {
-      return await db.select().from(ingestionEvents)
+      return await this.db.select().from(ingestionEvents)
         .orderBy(desc(ingestionEvents.startedAt))
         .limit(limit);
     } catch (error) {

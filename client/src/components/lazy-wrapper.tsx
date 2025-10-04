@@ -6,9 +6,10 @@ interface LazyWrapperProps {
   children: React.ReactNode;
   fallback?: React.ReactNode;
   errorFallback?: React.ReactNode;
+  minHeight?: string;
 }
 
-export function LazyWrapper({ children, fallback, errorFallback }: LazyWrapperProps) {
+export function LazyWrapper({ children, fallback, errorFallback, minHeight = '200px' }: LazyWrapperProps) {
   const defaultFallback = fallback || <LoadingState message="Loading component..." />;
   const [isOffline, setIsOffline] = useState(false);
   
@@ -31,15 +32,17 @@ export function LazyWrapper({ children, fallback, errorFallback }: LazyWrapperPr
   
   return (
     <ErrorBoundary fallback={errorFallback}>
-      <Suspense fallback={defaultFallback}>
-        {children}
-        {isOffline && (
-          <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-800">
-            <i className="fas fa-wifi-slash mr-1"></i>
-            Showing offline data
-          </div>
-        )}
-      </Suspense>
+      <div style={{ minHeight }} className="relative">
+        <Suspense fallback={defaultFallback}>
+          {children}
+          {isOffline && (
+            <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-xs text-red-800">
+              <i className="fas fa-wifi-slash mr-1"></i>
+              Showing offline data
+            </div>
+          )}
+        </Suspense>
+      </div>
     </ErrorBoundary>
   );
 }
@@ -99,6 +102,14 @@ export const LazyLeagueStandings = lazy(() =>
 
 export const LazyQuickStats = lazy(() => 
   retryLazyLoad(() => import('@/components/quick-stats').then(module => ({ default: module.QuickStats })))
+);
+
+export const LazyMatchPredictionCard = lazy(() => 
+  retryLazyLoad(() => import('@/components/match-prediction-card').then(module => ({ default: module.MatchPredictionCard })))
+);
+
+export const LazyBettingInsightsSelector = lazy(() => 
+  retryLazyLoad(() => import('@/components/betting-insights-selector').then(module => ({ default: module.BettingInsightsSelector })))
 );
 
 // HOC for wrapping components with lazy loading

@@ -10,6 +10,7 @@ export interface TelemetryMetrics {
   maxLatencyMs: number | null;
   serviceLatencyAverageMs: number | null;
   latestUpdatedAt: Date | null;
+  fallbackFixtures?: number;
 }
 
 const toDate = (value: Prediction["createdAt"]): Date | null => {

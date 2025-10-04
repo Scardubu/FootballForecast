@@ -57,15 +57,16 @@ interface Standing {
 }
 
 // Mock data with proper IDs and structure
+// Note: logo set to null to use fallback initials rendering (avoids 404 errors)
 const mockTeams: Team[] = [
-  { id: 1, name: 'Arsenal', code: 'ARS', country: 'England', founded: 1886, national: false, logo: '/assets/teams/arsenal.svg' },
-  { id: 2, name: 'Chelsea', code: 'CHE', country: 'England', founded: 1905, national: false, logo: '/assets/teams/chelsea.svg' },
-  { id: 3, name: 'Manchester City', code: 'MCI', country: 'England', founded: 1880, national: false, logo: '/assets/teams/man-city.svg' },
-  { id: 4, name: 'Liverpool', code: 'LIV', country: 'England', founded: 1892, national: false, logo: '/assets/teams/liverpool.svg' },
-  { id: 5, name: 'Barcelona', code: 'BAR', country: 'Spain', founded: 1899, national: false, logo: '/assets/teams/barcelona.svg' },
-  { id: 6, name: 'Real Madrid', code: 'RMA', country: 'Spain', founded: 1902, national: false, logo: '/assets/teams/real-madrid.svg' },
-  { id: 7, name: 'Manchester United', code: 'MUN', country: 'England', founded: 1878, national: false, logo: '/assets/teams/man-united.svg' },
-  { id: 8, name: 'Tottenham', code: 'TOT', country: 'England', founded: 1882, national: false, logo: '/assets/teams/tottenham.svg' }
+  { id: 1, name: 'Arsenal', code: 'ARS', country: 'England', founded: 1886, national: false, logo: null },
+  { id: 2, name: 'Chelsea', code: 'CHE', country: 'England', founded: 1905, national: false, logo: null },
+  { id: 3, name: 'Manchester City', code: 'MCI', country: 'England', founded: 1880, national: false, logo: null },
+  { id: 4, name: 'Liverpool', code: 'LIV', country: 'England', founded: 1892, national: false, logo: null },
+  { id: 5, name: 'Barcelona', code: 'BAR', country: 'Spain', founded: 1899, national: false, logo: null },
+  { id: 6, name: 'Real Madrid', code: 'RMA', country: 'Spain', founded: 1902, national: false, logo: null },
+  { id: 7, name: 'Manchester United', code: 'MUN', country: 'England', founded: 1878, national: false, logo: null },
+  { id: 8, name: 'Tottenham', code: 'TOT', country: 'England', founded: 1882, national: false, logo: null }
 ];
 
 const mockLeagues: League[] = [

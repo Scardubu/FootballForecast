@@ -94,15 +94,16 @@ export function TeamDisplay({
 
   return (
     <div className={cn("flex items-center gap-2", className)} data-testid={testId}>
-      {/* Team Logo */}
       <div className="relative">
         {team.logo && !logoError ? (
           <img
             src={team.logo}
             alt={displayName}
+            width="32"
+            height="32"
             className={cn(logoSize, "rounded-full object-cover")}
             onError={() => setLogoError(true)}
-            data-testid={`${testId ? testId + '-' : ''}logo`}
+            loading="lazy"
           />
         ) : (
           renderFallbackLogo()
@@ -113,6 +114,8 @@ export function TeamDisplay({
           <img
             src={teamFlag}
             alt={`${canonical?.country || team.country} flag`}
+            width="16"
+            height="16"
             className={cn(
               flagSize,
               "absolute -bottom-1 -right-1 rounded-sm border border-white shadow-sm object-cover"

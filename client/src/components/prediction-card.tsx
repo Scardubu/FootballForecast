@@ -20,7 +20,10 @@ export function PredictionCard({ fixture, homeTeam, awayTeam }: PredictionCardPr
     queryKey: ["prediction", fixture.id], 
     queryFn: () => apiClient.getPredictions(fixture.id),
     enabled: !!fixture.id,
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 1000 * 60 * 15, // 15 minutes (increased to reduce reloads)
+    retry: 1, // Only retry once
+    refetchOnWindowFocus: false, // Prevent reload on tab switch
+    refetchOnReconnect: false, // Prevent reload on network reconnect
   });
 
   const latency = prediction?.latencyMs ?? prediction?.serviceLatencyMs ?? null;
@@ -52,8 +55,8 @@ export function PredictionCard({ fixture, homeTeam, awayTeam }: PredictionCardPr
       <CardContent className="px-6 py-8">
         <div className="flex items-center justify-between mb-4">
           <MatchTeamsDisplay
-            homeTeam={homeTeam}
-            awayTeam={awayTeam}
+            homeTeam={homeTeam || { id: 0, name: 'Home Team', logo: '', code: null, country: null, founded: null, national: null }}
+            awayTeam={awayTeam || { id: 0, name: 'Away Team', logo: '', code: null, country: null, founded: null, national: null }}
             size="lg"
             showFlags={false}
             className="flex-1"

@@ -14,6 +14,8 @@ export const logger = pino({
       colorize: true,
       translateTime: 'HH:MM:ss.l',
       ignore: 'pid,hostname'
+      // Emojis are removed from all logger calls in codebase for Windows compatibility.
+      // For further customization, use CLI flags or a .pino-prettyrc config file.
     }
   } : undefined,
   base: {

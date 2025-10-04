@@ -8,6 +8,7 @@ import { AuthProvider, useAuth } from "@/lib/auth-context";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { PerformanceMonitor } from "@/components/performance-monitor";
+import { envConfig } from "@/lib/env-config";
 import { LiveStatusBannerAuto } from "@/components/live-status-banner-auto";
 import { DegradedModeBanner } from "@/components/degraded-mode-banner";
 import "./index.css";
@@ -48,6 +49,8 @@ const retryLazyLoad = (importFn: () => Promise<any>, retries = 3, interval = 150
 };
 
 const Dashboard = lazy(() => retryLazyLoad(() => import("@/pages/dashboard")));
+const BettingInsights = lazy(() => retryLazyLoad(() => import("@/pages/betting-insights")));
+const Telemetry = lazy(() => retryLazyLoad(() => import("@/pages/telemetry")));
 const NotFound = lazy(() => retryLazyLoad(() => import("@/pages/not-found")));
 
 function SimpleLoading({ message = "Loading..." }: { message?: string }) {
@@ -108,10 +111,12 @@ function AppRoutes() {
   return (
     <AppLayout>
       <ErrorBoundary fallback={<ImportErrorFallback />}>
-        <Suspense fallback={<SimpleLoading message="Loading dashboard..." />}>
+        <Suspense fallback={<SimpleLoading message="Loading..." />}>
           <Switch>
             <Route path="/" component={Dashboard} />
             <Route path="/dashboard" component={Dashboard} />
+            <Route path="/betting-insights" component={BettingInsights} />
+            <Route path="/telemetry" component={Telemetry} />
             <Route component={NotFound} />
           </Switch>
         </Suspense>
@@ -121,6 +126,11 @@ function AppRoutes() {
 }
 
 export default function App() {
+  // Log environment configuration on mount (dev only)
+  React.useEffect(() => {
+    envConfig.logConfig();
+  }, []);
+
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>

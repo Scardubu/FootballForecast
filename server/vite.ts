@@ -31,9 +31,36 @@ export function log(message: string, source = "express") {
 
 export async function setupVite(app: Express, server: Server) {
   try {
+    const resolvedClientPort = Number(
+      process.env.HMR_CLIENT_PORT ?? process.env.PORT ?? 5000
+    );
+
+    const resolvedProtocol = (process.env.HMR_PROTOCOL ?? (process.env.HTTPS === "true" ? "wss" : "ws")) as "ws" | "wss";
+
+    const hmrConfig: Record<string, unknown> = {
+      server,
+      clientPort: resolvedClientPort,
+      protocol: resolvedProtocol,
+    };
+
+    if (process.env.HMR_HOST) {
+      hmrConfig.host = process.env.HMR_HOST;
+    }
+
+    if (process.env.HMR_PORT) {
+      const parsedPort = Number(process.env.HMR_PORT);
+      if (!Number.isNaN(parsedPort)) {
+        hmrConfig.port = parsedPort;
+      }
+    }
+
+    if (process.env.HMR_PATH) {
+      hmrConfig.path = process.env.HMR_PATH;
+    }
+
     const serverOptions = {
       middlewareMode: true,
-      hmr: { server },
+      hmr: hmrConfig,
       allowedHosts: true as const,
     };
 
@@ -54,7 +81,31 @@ export async function setupVite(app: Express, server: Server) {
 
     app.use(vite.middlewares);
     app.use("*", async (req, res, next) => {
+      if (req.method !== "GET") {
+        return next();
+      }
+
       const url = req.originalUrl;
+      const pathname = url.split("?")[0];
+      const hasExtension = path.extname(pathname) !== "";
+      const skipFallbackPrefixes = [
+        "/@vite",
+        "/@react-refresh",
+        "/__vite",
+        "/src/",
+        "/api",
+        "/ws",
+        "/favicon",
+        "/manifest",
+        "/robots",
+      ];
+
+      const shouldSkipFallback =
+        hasExtension || skipFallbackPrefixes.some((prefix) => pathname.startsWith(prefix));
+
+      if (shouldSkipFallback) {
+        return next();
+      }
 
       try {
         const clientTemplate = path.resolve(__dirname, "..", "client", "index.html");
@@ -144,8 +195,19 @@ export function serveStatic(app: Express) {
       return;
     }
     
-    // Serve static files
-    app.use(express.static(distPath));
+    // Serve static files with proper MIME types
+    app.use(express.static(distPath, {
+      setHeaders: (res, filePath) => {
+        // Set proper MIME types for JavaScript modules
+        if (filePath.endsWith('.js')) {
+          res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+        } else if (filePath.endsWith('.css')) {
+          res.setHeader('Content-Type', 'text/css; charset=utf-8');
+        } else if (filePath.endsWith('.json')) {
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        }
+      }
+    }));
     log(`✅ Serving static files from: ${distPath}`, 'static');
     
     // Check if index.html exists
@@ -157,8 +219,14 @@ export function serveStatic(app: Express) {
     
     log(`✅ Found index.html at: ${indexPath}`, 'static');
     
-    // Fall through to index.html for SPA routing
-    app.use('*', (_req, res) => {
+    // Fall through to index.html for SPA routing (but NOT for asset files)
+    app.use('*', (req, res, next) => {
+      // Don't serve index.html for asset requests
+      if (req.originalUrl.startsWith('/assets/') || 
+          req.originalUrl.startsWith('/api/') ||
+          req.originalUrl.match(/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot)$/)) {
+        return next();
+      }
       res.sendFile(indexPath);
     });
   } catch (error) {

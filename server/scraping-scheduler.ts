@@ -4,6 +4,7 @@
 import * as cron from 'node-cron';
 import { spawn } from 'child_process';
 import { storage } from './storage.js';
+import type { Fixture } from '../shared/schema.js';
 
 interface ScrapeJob {
   id: string;
@@ -23,10 +24,19 @@ class ScrapingScheduler {
   private activeScrapes = new Set<string>();
   private maxConcurrentScrapes = 2; // Limit concurrent operations
   private isProcessingQueue = false;
+  private oddsRefreshTimer: NodeJS.Timeout | null = null;
+  private injuryRefreshTimer: NodeJS.Timeout | null = null;
+  private readonly oddsRefreshIntervalMs = parseInt(process.env.SCRAPE_ODDS_INTERVAL_MS || `${10 * 60 * 1000}`, 10); // default 10 minutes
+  private readonly injuryRefreshIntervalMs = parseInt(process.env.SCRAPE_INJURY_INTERVAL_MS || `${60 * 60 * 1000}`, 10); // default 1 hour
+  private readonly oddsWindowMs = parseInt(process.env.SCRAPE_ODDS_WINDOW_MS || `${12 * 60 * 60 * 1000}`, 10); // default 12 hours lookahead
+  private readonly injuryWindowMs = parseInt(process.env.SCRAPE_INJURY_WINDOW_MS || `${48 * 60 * 60 * 1000}`, 10); // default 48 hours lookahead
+  private readonly lastOddsRefreshByFixture = new Map<number, number>();
+  private readonly lastInjuryRefreshByFixture = new Map<number, number>();
   
   constructor() {
     this.startNightlyTeamRatingsJob();
     this.startQueueProcessor();
+    this.startRecurringRefreshJobs();
   }
 
   /**
@@ -96,15 +106,15 @@ class ScrapingScheduler {
           await this.scheduleTeamRatingsScraping(team.id, team.name, 2);
         }
         
-        console.log('✅ Nightly team ratings refresh scheduled');
+        console.log('[OK] Nightly team ratings refresh scheduled');
       } catch (error) {
-        console.error('❌ Error scheduling nightly team ratings refresh:', error);
+        console.error('[ERROR] Error scheduling nightly team ratings refresh:', error);
       }
     }, {
       timezone: "UTC"
     });
     
-    console.log('🕐 Nightly team ratings job scheduled for 2:00 AM UTC');
+    console.log('[SCHEDULE] Nightly team ratings job scheduled for 2:00 AM UTC');
   }
 
   /**
@@ -156,11 +166,143 @@ class ScrapingScheduler {
       }
       
       job.status = 'completed';
-      console.log(`✅ Scrape job completed: ${job.id}`);
+      console.log(`[OK] Scrape job completed: ${job.id}`);
       
     } catch (error) {
       job.status = 'failed';
       console.error(`❌ Scrape job failed: ${job.id}`, error);
+    }
+  }
+
+  /**
+   * Start recurring jobs for odds / injury refresh based on TTLs
+   */
+  private startRecurringRefreshJobs() {
+    const enableScraping = (process.env.ENABLE_SCRAPING || 'true').toLowerCase() !== 'false';
+    if (!enableScraping) {
+      console.log('⚠️ ENABLE_SCRAPING=false - skipping scheduled refresh jobs');
+      return;
+    }
+
+    const runOddsRefresh = () => {
+      this.refreshUpcomingFixtures('odds').catch(err => {
+        console.error('❌ Scheduled odds refresh failed:', err);
+      });
+    };
+
+    runOddsRefresh();
+    this.oddsRefreshTimer = setInterval(runOddsRefresh, this.oddsRefreshIntervalMs);
+    console.log(`[SCHEDULE] Odds refresh scheduled every ${Math.round(this.oddsRefreshIntervalMs / 60000)} minutes`);
+
+    const runInjuryRefresh = () => {
+      this.refreshUpcomingFixtures('injuries').catch(err => {
+        console.error('❌ Scheduled injury refresh failed:', err);
+      });
+    };
+
+    runInjuryRefresh();
+    this.injuryRefreshTimer = setInterval(runInjuryRefresh, this.injuryRefreshIntervalMs);
+    console.log(`[SCHEDULE] Injury refresh scheduled every ${Math.round(this.injuryRefreshIntervalMs / 60000)} minutes`);
+  }
+
+  /**
+   * Refresh upcoming fixtures for odds or injuries when TTL expired
+   */
+  private async refreshUpcomingFixtures(target: 'odds' | 'injuries'): Promise<void> {
+    const now = Date.now();
+    const windowMs = target === 'odds' ? this.oddsWindowMs : this.injuryWindowMs;
+    const fixtures = await storage.getFixtures();
+    const upcoming = fixtures.filter(fixture => this.isFixtureWithinWindow(fixture, now, windowMs));
+
+    if (upcoming.length === 0) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[INFO] No fixtures within ${Math.round(windowMs / 3600000)}h window for ${target} refresh`);
+      }
+      return;
+    }
+
+    const lastRefreshMap = target === 'odds' ? this.lastOddsRefreshByFixture : this.lastInjuryRefreshByFixture;
+    const intervalMs = target === 'odds' ? this.oddsRefreshIntervalMs : this.injuryRefreshIntervalMs;
+
+    for (const fixture of upcoming) {
+      const lastRefresh = lastRefreshMap.get(fixture.id) ?? 0;
+      if (now - lastRefresh < intervalMs) {
+        continue;
+      }
+
+      const teams = await this.getFixtureTeams(fixture);
+      if (!teams) {
+        continue;
+      }
+
+      try {
+        await this.triggerMlScrape(teams.teamIds, teams.teamNames, [fixture.id]);
+        lastRefreshMap.set(fixture.id, now);
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`[OK] Triggered ${target} refresh for fixture ${fixture.id}`);
+        }
+      } catch (error) {
+        console.error(`[ERROR] Failed to trigger ${target} refresh for fixture ${fixture.id}:`, error);
+      }
+    }
+  }
+
+  private isFixtureWithinWindow(fixture: Fixture, now: number, windowMs: number): boolean {
+    const timestampMs = fixture.timestamp
+      ? fixture.timestamp * 1000
+      : (fixture.date ? new Date(fixture.date).getTime() : NaN);
+    if (!Number.isFinite(timestampMs)) {
+      return false;
+    }
+    return timestampMs >= now && timestampMs <= now + windowMs;
+  }
+
+  private async getFixtureTeams(fixture: Fixture): Promise<{ teamIds: number[]; teamNames: string[] } | null> {
+    if (!fixture.homeTeamId || !fixture.awayTeamId) {
+      return null;
+    }
+
+    const [homeTeam, awayTeam] = await Promise.all([
+      storage.getTeam(fixture.homeTeamId),
+      storage.getTeam(fixture.awayTeamId)
+    ]);
+
+    if (!homeTeam || !awayTeam) {
+      return null;
+    }
+
+    return {
+      teamIds: [homeTeam.id, awayTeam.id],
+      teamNames: [homeTeam.name, awayTeam.name]
+    };
+  }
+
+  private async triggerMlScrape(teamIds: number[], teamNames: string[], fixtureIds: number[]): Promise<void> {
+    const baseUrl = process.env.ML_SERVICE_URL || 'http://localhost:8000';
+    const timeoutMs = parseInt(process.env.ML_SERVICE_TIMEOUT || '30000', 10);
+    const controller = new AbortController();
+    const timeoutHandle = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const response = await fetch(`${baseUrl}/scrape`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        signal: controller.signal,
+        body: JSON.stringify({
+          team_ids: teamIds,
+          team_names: teamNames,
+          fixture_ids: fixtureIds
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => '');
+        throw new Error(`ML scrape trigger failed (${response.status}): ${errorText}`);
+      }
+    } finally {
+      clearTimeout(timeoutHandle);
     }
   }
 
@@ -236,6 +378,12 @@ class ScrapingScheduler {
       activeScrapes: this.activeScrapes.size,
       maxConcurrentScrapes: this.maxConcurrentScrapes,
       isProcessing: this.isProcessingQueue,
+      oddsRefreshIntervalMs: this.oddsRefreshIntervalMs,
+      injuryRefreshIntervalMs: this.injuryRefreshIntervalMs,
+      oddsWindowMs: this.oddsWindowMs,
+      injuryWindowMs: this.injuryWindowMs,
+      lastOddsRefreshByFixture: Array.from(this.lastOddsRefreshByFixture.entries()),
+      lastInjuryRefreshByFixture: Array.from(this.lastInjuryRefreshByFixture.entries()),
       queuedJobs: this.scrapeQueue.map(job => ({
         id: job.id,
         type: job.type,
@@ -249,6 +397,6 @@ class ScrapingScheduler {
 
 // Create and export singleton instance
 const scheduler = new ScrapingScheduler();
-console.log('🕐 Scraping scheduler initialized successfully');
+console.log('[OK] Scraping scheduler initialized successfully');
 
 export const scrapingScheduler = scheduler;

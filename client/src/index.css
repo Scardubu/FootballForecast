@@ -12,6 +12,13 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Smooth transitions for better UX */
+* {
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 200ms;
+}
+
 :root {
   --background: hsl(0, 0%, 98%);
   --foreground: hsl(0, 0%, 13%);
@@ -92,7 +99,7 @@
 
 @layer base {
   * {
-    @apply border-border;
+    border-color: var(--border);
   }
 
   body {

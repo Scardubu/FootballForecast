@@ -14,7 +14,34 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from ml.feature_engineering import FeatureEngineering
 from ml.predictor import FootballPredictor
-from scrapers.fbref_scraper import FBrefScraper
+
+# Import scrapers - make them all optional for graceful degradation
+try:
+    from scrapers.fbref_scraper import FBrefScraper
+except ImportError:
+    FBrefScraper = None
+    print("WARNING: FBrefScraper not available")
+
+try:
+    from scrapers.oddsportal_scraper import OddsPortalScraper
+except ImportError:
+    OddsPortalScraper = None
+    print("WARNING: OddsPortalScraper not available")
+
+try:
+    from scrapers.physioroom_scraper import PhysioRoomScraper
+except ImportError:
+    PhysioRoomScraper = None
+    print("WARNING: PhysioRoomScraper not available")
+
+# OpenWeather scraper - optional, will be initialized if available
+try:
+    from scrapers.openweather_scraper import OpenWeatherScraper
+    OPENWEATHER_AVAILABLE = True
+except ImportError:
+    OpenWeatherScraper = None
+    OPENWEATHER_AVAILABLE = False
+    print("WARNING: OpenWeatherScraper not available - weather data will be skipped")
 
 
 app = FastAPI(
@@ -45,6 +72,8 @@ class PredictionRequest(BaseModel):
 
 
 class PredictionResponse(BaseModel):
+    model_config = {"protected_namespaces": ()}  # Disable protected namespace warnings
+    
     fixture_id: Optional[int]
     predicted_outcome: str
     probabilities: Dict[str, float]
@@ -306,27 +335,74 @@ async def retrain_model_background(start_date: str, end_date: str):
 async def scrape_team_data_background(team_ids: List[int], team_names: List[str], fixture_ids: List[int]):
     """Background task for data scraping"""
     try:
-        scraper = FBrefScraper()
+        fbref = FBrefScraper()
+        odds = OddsPortalScraper()
+        physio = PhysioRoomScraper()
+        weather = None
+        
+        # Initialize weather scraper if API key is available and module exists
+        if OPENWEATHER_AVAILABLE and os.getenv('OPENWEATHER_API_KEY'):
+            try:
+                weather = OpenWeatherScraper()
+            except Exception as e:
+                print(f"⚠️ Weather scraper initialization failed: {e}")
+        elif not OPENWEATHER_AVAILABLE:
+            print("ℹ️ OpenWeather scraper not available - skipping weather data collection")
         
         # Scrape team form data
         for team_id, team_name in zip(team_ids, team_names):
-            form_data = await scraper.scrape_team_form(team_id, team_name)
+            form_data = await fbref.scrape_team_form(team_id, team_name)
             if form_data:
-                await scraper.save_to_database(form_data)
+                await fbref.save_to_database(form_data)
                 print(f"Scraped form data for team {team_name}")
+
+            # Scrape injuries per team (PhysioRoom)
+            injuries = await physio.scrape_team_injuries(team_id, team_name)
+            if injuries:
+                await physio.save_to_database(injuries)
+                print(f"Scraped injuries for team {team_name}")
         
         # Scrape match data if fixture IDs provided
         for fixture_id in fixture_ids:
             if len(team_names) >= 2:
-                match_data = await scraper.scrape_match_xg(fixture_id, team_names[0], team_names[1])
+                match_data = await fbref.scrape_match_xg(fixture_id, team_names[0], team_names[1])
                 if match_data:
-                    await scraper.save_to_database(match_data)
+                    await fbref.save_to_database(match_data)
                     print(f"Scraped match data for fixture {fixture_id}")
+
+                # Scrape odds drift for the fixture (OddsPortal)
+                odds_data = await odds.scrape_fixture_odds(fixture_id, team_names[0], team_names[1])
+                if odds_data:
+                    await odds.save_to_database(odds_data)
+                    print(f"Scraped odds data for fixture {fixture_id}")
+                
+                # Scrape weather data for the fixture (OpenWeather) if available
+                # Note: Requires venue coordinates to be available from fixture metadata
+                # This is a placeholder - actual implementation needs venue lat/lon lookup
+                if weather:
+                    # TODO: Fetch fixture details to get venue coordinates and timestamp
+                    # For now, skip weather scraping in background task
+                    # Weather should be scraped on-demand when coordinates are available
+                    pass
         
         print("Background scraping completed")
         
     except Exception as e:
         print(f"Background scraping failed: {e}")
+    finally:
+        # Cleanup Playwright resources
+        try:
+            await fbref.cleanup()
+        except Exception:
+            pass
+        try:
+            await odds.cleanup()
+        except Exception:
+            pass
+        try:
+            await physio.cleanup()
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":

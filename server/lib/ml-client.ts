@@ -19,7 +19,13 @@ export class MLServiceClient {
   private fallbackEnabled: boolean;
 
   constructor() {
-    this.baseUrl = process.env.ML_SERVICE_URL || "http://localhost:8000";
+    // Prefer 127.0.0.1 to avoid potential IPv6 localhost resolution issues on Windows
+    const defaultUrl = "http://127.0.0.1:8000";
+    const envUrlRaw = process.env.ML_SERVICE_URL || defaultUrl;
+    // Strip inline comments and trim
+    const envUrlClean = envUrlRaw.split('#')[0].trim();
+    // Prefer IPv4 localhost to avoid Windows IPv6 quirks
+    this.baseUrl = (envUrlClean || defaultUrl).replace("localhost", "127.0.0.1");
     this.timeout = parseInt(process.env.ML_SERVICE_TIMEOUT || "30000");
     // Fallbacks are safe in development, but default to disabled in production unless explicitly enabled
     const envFlag = (process.env.ML_FALLBACK_ENABLED || '').toLowerCase();
@@ -31,27 +37,43 @@ export class MLServiceClient {
    * Check if ML service is healthy
    */
   async healthCheck(): Promise<MLHealthResponse> {
+    const healthTimeoutMs = parseInt(process.env.ML_SERVICE_HEALTH_TIMEOUT || '8000', 10);
     try {
-      const response = await fetch(`${this.baseUrl}/`, {
-        method: "GET",
-        signal: AbortSignal.timeout(5000), // Short timeout for health checks
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+      const tryHealth = async (url: string) => {
+        const response = await fetch(`${url}/`, {
+          method: "GET",
+          signal: AbortSignal.timeout(healthTimeoutMs),
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
 
-      if (!response.ok) {
-        throw new Error(`Health check failed: ${response.status} ${response.statusText}`);
-      }
+        if (!response.ok) {
+          throw new Error(`Health check failed: ${response.status} ${response.statusText}`);
+        }
 
-      const data = await response.json();
-      return mlHealthResponseSchema.parse({
-        status: response.ok ? "healthy" : "unhealthy",
-        service: "SabiScore ML API",
-        version: data.version || "1.0.0",
-        model_loaded: true, // Assume loaded if service responds
-        ...data
-      });
+        const data = await response.json();
+        return mlHealthResponseSchema.parse({
+          status: response.ok ? "healthy" : "unhealthy",
+          service: "SabiScore ML API",
+          version: data.version || "1.0.0",
+          model_loaded: true,
+          ...data
+        });
+      };
+
+      return await this.withRetries<MLHealthResponse>(async () => {
+        try {
+          return await tryHealth(this.baseUrl);
+        } catch (e) {
+          // Automatic fallback from localhost -> 127.0.0.1 if needed
+          if (this.baseUrl.includes("localhost")) {
+            const alt = this.baseUrl.replace("localhost", "127.0.0.1");
+            return await tryHealth(alt);
+          }
+          throw e;
+        }
+      }, 3, 400);
     } catch (error) {
       if (process.env.NODE_ENV === 'development') console.error("ML service health check failed:", error);
       return {

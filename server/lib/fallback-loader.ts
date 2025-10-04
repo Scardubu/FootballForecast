@@ -309,18 +309,116 @@ const FALLBACK_STANDINGS: Record<number, Standing[]> = {
 const FALLBACK_FIXTURES: Record<number, Fixture[]> = {
   39: [
     {
-      id: 9993901,
-      referee: "Fallback Ref",
+      id: 1001,
+      referee: "Michael Oliver",
       timezone: "UTC",
-      date: new Date(),
-      timestamp: Math.floor(Date.now() / 1000),
+      date: new Date(Date.now() + 86400000), // Tomorrow
+      timestamp: Math.floor((Date.now() + 86400000) / 1000),
       status: "NS",
       elapsed: null,
-      round: "Regular Season",
+      round: "Regular Season - 1",
       homeTeamId: 50,
       awayTeamId: 40,
       leagueId: 39,
       venue: "Etihad Stadium",
+      homeScore: null,
+      awayScore: null,
+      halftimeHomeScore: null,
+      halftimeAwayScore: null
+    },
+    {
+      id: 1002,
+      referee: "Anthony Taylor",
+      timezone: "UTC",
+      date: new Date(Date.now() + 172800000), // 2 days
+      timestamp: Math.floor((Date.now() + 172800000) / 1000),
+      status: "NS",
+      elapsed: null,
+      round: "Regular Season - 1",
+      homeTeamId: 42,
+      awayTeamId: 33,
+      leagueId: 39,
+      venue: "Emirates Stadium",
+      homeScore: null,
+      awayScore: null,
+      halftimeHomeScore: null,
+      halftimeAwayScore: null
+    }
+  ],
+  140: [
+    {
+      id: 1003,
+      referee: "José María Sánchez",
+      timezone: "UTC",
+      date: new Date(Date.now() + 86400000),
+      timestamp: Math.floor((Date.now() + 86400000) / 1000),
+      status: "NS",
+      elapsed: null,
+      round: "Regular Season - 1",
+      homeTeamId: 541,
+      awayTeamId: 529,
+      leagueId: 140,
+      venue: "Santiago Bernabéu",
+      homeScore: null,
+      awayScore: null,
+      halftimeHomeScore: null,
+      halftimeAwayScore: null
+    }
+  ],
+  135: [
+    {
+      id: 1004,
+      referee: "Daniele Orsato",
+      timezone: "UTC",
+      date: new Date(Date.now() + 86400000),
+      timestamp: Math.floor((Date.now() + 86400000) / 1000),
+      status: "NS",
+      elapsed: null,
+      round: "Regular Season - 1",
+      homeTeamId: 4891,
+      awayTeamId: 4892,
+      leagueId: 135,
+      venue: "San Siro",
+      homeScore: null,
+      awayScore: null,
+      halftimeHomeScore: null,
+      halftimeAwayScore: null
+    }
+  ],
+  78: [
+    {
+      id: 1005,
+      referee: "Felix Brych",
+      timezone: "UTC",
+      date: new Date(Date.now() + 86400000),
+      timestamp: Math.floor((Date.now() + 86400000) / 1000),
+      status: "NS",
+      elapsed: null,
+      round: "Regular Season - 1",
+      homeTeamId: 157,
+      awayTeamId: 165,
+      leagueId: 78,
+      venue: "Allianz Arena",
+      homeScore: null,
+      awayScore: null,
+      halftimeHomeScore: null,
+      halftimeAwayScore: null
+    }
+  ],
+  61: [
+    {
+      id: 1006,
+      referee: "Clément Turpin",
+      timezone: "UTC",
+      date: new Date(Date.now() + 86400000),
+      timestamp: Math.floor((Date.now() + 86400000) / 1000),
+      status: "NS",
+      elapsed: null,
+      round: "Regular Season - 1",
+      homeTeamId: 591,
+      awayTeamId: 548,
+      leagueId: 61,
+      venue: "Parc des Princes",
       homeScore: null,
       awayScore: null,
       halftimeHomeScore: null,

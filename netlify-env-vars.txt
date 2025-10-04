@@ -1,0 +1,81 @@
+﻿Netlify Environment Variables
+Project: graceful-rolypoly-c18a32 (Sabiscoore Team)
+Site ID: 022fe550-d17f-44f8-b187-193b4ddc78a0
+Generated: 2025-10-04 18:32:01
+
+Instructions:
+1. Go to: https://app.netlify.com/sites/graceful-rolypoly-c18a32/settings/env
+2. Click 'Add a variable' for each variable below
+3. Copy the Key and Value exactly as shown
+
+---------------------------------------------------
+Key:   API_BEARER_TOKEN
+Value: JWeUkU6C-Pl-R6ls9DyJTgyZ4vybBYSBBskboe3Vz4s
+
+Key:   API_FOOTBALL_HOST
+Value: v3.football.api-sports.io
+
+Key:   API_FOOTBALL_KEY
+Value: 8c46c6ff5fd2085b06b9ea29b3efa5f4
+
+Key:   API_RATE_LIMIT
+Value: 100
+
+Key:   DATABASE_URL
+Value: postgresql://neondb_owner:npg_6oDAyrCWd0lK@ep-bitter-frost-addp6o5c-pooler.c-2.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
+
+Key:   ENABLE_SCRAPING
+Value: true
+
+Key:   LOG_LEVEL
+Value: info
+
+Key:   LOG_PRETTY
+Value: true
+
+Key:   ML_FALLBACK_ENABLED
+Value: true
+
+Key:   ML_SERVICE_URL
+Value: http://127.0.0.1:8000
+
+Key:   NEON_API_KEY
+Value: napi_2lv04r1pas134aqnp9s2qhlygsmq1ha11nvtp61xojnzgk9jm1hhukc53w06pdea
+
+Key:   OPENWEATHER_API_KEY
+Value: 807ce810a5362ba47f11db65fe338144
+
+Key:   SCRAPE_INJURY_INTERVAL_MS
+Value: 3600000       # 1 hour
+
+Key:   SCRAPE_INJURY_WINDOW_MS
+Value: 172800000       # 48 hours lookahead
+
+Key:   SCRAPE_ODDS_INTERVAL_MS
+Value: 600000          # 10 minutes
+
+Key:   SCRAPE_ODDS_WINDOW_MS
+Value: 43200000          # 12 hours lookahead
+
+Key:   SCRAPER_AUTH_TOKEN
+Value: WyrIUJKZ1vfi7aSh7JAgoC8eCV-y3TJqHwY6LgG2luM
+
+Key:   SESSION_MAX_AGE
+Value: 86400000
+
+Key:   SESSION_SECRET
+Value: faf2acdde83fb101cf9f5132f74cd8188239860bddf37f1c422f838a2b674fbe
+
+Key:   SESSION_SECURE
+Value: false
+
+Key:   STACK_AUTH_API_URL
+Value: https://api.stack-auth.com
+
+Key:   STACK_AUTH_JWKS_URL
+Value: https://api.stack-auth.com/api/v1/projects/8b0648c2-f267-44c1-b4c2-a64eccb6f737/.well-known/jwks.json
+
+Key:   STACK_AUTH_PROJECT_ID
+Value: 8b0648c2-f267-44c1-b4c2-a64eccb6f737
+
+
