@@ -157,8 +157,8 @@ export class FeatureExtractor {
         headToHead: h2hData,
         venue: venueData,
         injuries: injuryData,
-        market,
-        weather,
+        market: market ?? undefined,
+        weather: weather ?? undefined,
         dataQuality: this.assessDataQuality(formData, xgData, h2hData, extraSources)
       };
 

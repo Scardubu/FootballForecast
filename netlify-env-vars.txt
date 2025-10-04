@@ -1,7 +1,7 @@
 ﻿Netlify Environment Variables
 Project: graceful-rolypoly-c18a32 (Sabiscoore Team)
 Site ID: 022fe550-d17f-44f8-b187-193b4ddc78a0
-Generated: 2025-10-04 18:32:01
+Generated: 2025-10-04 19:27:47
 
 Instructions:
 1. Go to: https://app.netlify.com/sites/graceful-rolypoly-c18a32/settings/env
