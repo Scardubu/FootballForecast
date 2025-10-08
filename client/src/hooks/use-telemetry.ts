@@ -3,6 +3,10 @@ import { useQuery } from "@tanstack/react-query";
 import type { Prediction } from "@shared/schema";
 import { apiClient } from "@/lib/api-client";
 import { MockDataProvider } from "@/lib/mock-data-provider";
+import { isTestEnv } from "@/lib/env";
+
+const IS_DEV = import.meta.env.DEV === true;
+const IS_TEST = isTestEnv();
 import { computeTelemetryMetrics } from "@/lib/telemetry-metrics";
 
 const buildQueryKey = (fixtureIds?: number[]) => {
@@ -18,12 +22,16 @@ const fetchTelemetry = async (fixtureIds?: number[]): Promise<Record<number, Pre
     return await apiClient.getPredictionTelemetry(fixtureIds);
   } catch (error) {
     console.warn("Falling back to mock telemetry due to API error", error);
-    if (typeof window !== "undefined") {
-      window.isServerOffline = true;
-      localStorage.setItem("serverStatus", "offline");
-      window.dispatchEvent(new Event("serverStatusChange"));
+    if (IS_DEV || IS_TEST) {
+      if (typeof window !== "undefined") {
+        window.isServerOffline = true;
+        localStorage.setItem("serverStatus", "offline");
+        window.dispatchEvent(new Event("serverStatusChange"));
+      }
+      return await MockDataProvider.getPredictionTelemetry(fixtureIds);
     }
-    return await MockDataProvider.getPredictionTelemetry(fixtureIds);
+    // In production, do not use mock data; return empty telemetry
+    return {} as Record<number, Prediction | undefined>;
   }
 };
 

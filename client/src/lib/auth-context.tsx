@@ -45,10 +45,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const checkAuth = async (): Promise<AuthStatus> => {
     try {
       try {
-        const { signal, cancel } = createAbortController(3000);
+        const { signal, cancel } = createAbortController(5000); // Increased to 5s
         const response = await fetch(buildApiUrl('/api/auth/status'), {
           credentials: 'include',
-          // Add a timeout to prevent hanging requests
           signal
         });
         cancel();
@@ -60,22 +59,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
           return status;
         }
         
-        // Not authenticated
+        // Not authenticated - this is OK in production
         const unauthStatus = { authenticated: false, user: null };
         setAuth(unauthStatus);
         return unauthStatus;
       } catch (fetchErr) {
-        // If in development mode and server is not available, use mock auth
-        if (import.meta.env.DEV) {
-          console.warn('Development server not available, using mock authentication status');
-          // Return unauthenticated so login will be attempted
-          return { authenticated: false, user: null };
-        }
-        throw fetchErr;
+        // Auth check failed - treat as unauthenticated and allow app to continue
+        console.warn('Auth check failed, continuing as unauthenticated:', fetchErr);
+        const unauthStatus = { authenticated: false, user: null };
+        setAuth(unauthStatus);
+        return unauthStatus;
       }
     } catch (err) {
-      console.error('Auth check failed:', err);
-      setError('Failed to check authentication status');
+      console.error('Auth check error:', err);
+      // Don't set error state - just continue as unauthenticated
       const errorStatus = { authenticated: false, user: null };
       setAuth(errorStatus);
       return errorStatus;
@@ -142,18 +139,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
-  // Initialize authentication on mount
+  // Initialize authentication on mount - NON-BLOCKING
   useEffect(() => {
     const initAuth = async () => {
-      setIsLoading(true);
-      
       try {
         // Get auth status directly from checkAuth return
         const authStatus = await checkAuth();
         
         // If not authenticated in development mode, auto-login
-        // Check both import.meta.env.DEV and NODE_ENV to be extra safe
-        // Explicitly prevent this in production
         const isDevelopment = import.meta.env.DEV === true && import.meta.env.PROD !== true;
         if (!authStatus.authenticated && isDevelopment && window.location.hostname === 'localhost') {
           await login();
@@ -161,8 +154,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
       } catch (err) {
         console.error('Auth initialization failed:', err);
         // In development mode, try auto-login even if check failed
-        // Check both import.meta.env.DEV and NODE_ENV to be extra safe
-        // Explicitly prevent this in production
         const isDevelopment = import.meta.env.DEV === true && import.meta.env.PROD !== true;
         if (isDevelopment && window.location.hostname === 'localhost') {
           try {
@@ -171,12 +162,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
             console.error('Auto-login failed:', loginErr);
           }
         }
+      } finally {
+        // Always stop loading after a maximum of 2 seconds to prevent blocking
+        setIsLoading(false);
       }
-      
-      setIsLoading(false);
     };
 
-    initAuth();
+    // Set a hard timeout to prevent indefinite loading
+    const timeoutId = setTimeout(() => {
+      setIsLoading(false);
+      console.warn('Auth initialization timeout - continuing without auth');
+    }, 2000);
+
+    initAuth().finally(() => clearTimeout(timeoutId));
   }, []);
 
   const value = {

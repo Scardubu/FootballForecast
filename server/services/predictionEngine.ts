@@ -562,8 +562,8 @@ export class PredictionEngine {
       });
     }
 
-    // Sort by absolute impact
-    return factors.sort((a, b) => Math.abs(b.impact) - Math.abs(a.impact)).slice(0, 5);
+    // Sort by absolute impact and limit to top 4 factors
+    return factors.sort((a, b) => Math.abs(b.impact) - Math.abs(a.impact)).slice(0, 4);
   }
 
   /**

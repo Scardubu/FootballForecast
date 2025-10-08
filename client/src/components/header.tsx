@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { MobileMenu } from "./mobile-menu";
 import { useTelemetrySummary } from "@/hooks/use-telemetry";
 import { formatCalibrationRate, formatLatency } from "@/lib/telemetry-metrics";
+import { BarChart3, Footprints, Gauge, Lightbulb, Loader2, TrendingUp } from "lucide-react";
 
 export function Header() {
   const { selectedLeague, setSelectedLeague } = useLeagueStore();
@@ -85,7 +86,7 @@ export function Header() {
                 ]} />
               </div>
               <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
-                <i className="fas fa-futbol text-primary-foreground text-lg"></i>
+                <Footprints className="h-5 w-5 text-primary-foreground" aria-hidden="true" />
               </div>
               <div>
                 <h1 className="text-xl font-bold text-primary">SabiScore</h1>
@@ -93,7 +94,7 @@ export function Header() {
               </div>
             </div>
             
-            <nav className="hidden md:flex space-x-6">
+            <nav className="hidden md:flex space-x-6" aria-label="Main navigation">
               <Link
                 href="/"
                 className={`${location === "/" || location.startsWith("/dashboard") ? "text-foreground" : "text-muted-foreground"} hover:text-primary font-medium transition-colors`}
@@ -106,7 +107,7 @@ export function Header() {
                 className={`${location === "/betting-insights" ? "text-foreground" : "text-muted-foreground"} hover:text-primary font-medium transition-colors flex items-center gap-1`}
                 data-testid="nav-betting-insights"
               >
-                <i className="fas fa-chart-line text-xs"></i>
+                <TrendingUp className="h-3 w-3" aria-hidden="true" />
                 Betting Insights
                 <Badge variant="secondary" className="text-[10px] px-1">NEW</Badge>
               </Link>
@@ -129,7 +130,7 @@ export function Header() {
                 className={`${location === "/telemetry" ? "text-foreground" : "text-muted-foreground"} hover:text-primary font-medium transition-colors flex items-center gap-1`}
                 data-testid="nav-telemetry"
               >
-                <i className="fas fa-chart-area text-xs"></i>
+                <Gauge className="h-3 w-3" aria-hidden="true" />
                 Telemetry
               </Link>
             </nav>
@@ -142,13 +143,14 @@ export function Header() {
                 data-testid="league-selector" 
                 className="w-[120px] sm:w-[140px] md:w-48 bg-muted border border-border text-xs sm:text-sm"
                 disabled={isLoadingLeagues}
+                aria-label="Select football league"
               >
                 <SelectValue placeholder={isLoadingLeagues ? "Loading..." : "Select League"} />
               </SelectTrigger>
               <SelectContent className="z-[100] bg-card border-border shadow-lg">
                 {isLoadingLeagues ? (
                   <div className="px-3 py-2 text-sm text-muted-foreground flex items-center">
-                    <i className="fas fa-spinner fa-spin mr-2"></i>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" />
                     Loading leagues...
                   </div>
                 ) : leagues.length === 0 ? (

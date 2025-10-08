@@ -8,7 +8,7 @@ export interface SectionProps {
   children: React.ReactNode;
 }
 
-export const Section: React.FC<SectionProps> = ({ title, description, actions, className = "space-y-4", children }) => {
+export const Section: React.FC<SectionProps> = ({ title, description, actions, className = "space-y-4 cv-auto", children }) => {
   return (
     <section className={className}>
       {(title || description || actions) && (

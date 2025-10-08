@@ -350,31 +350,36 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
 
   // Connect once on mount, disconnect only on unmount
   useEffect(() => {
-    // Only attempt WebSocket connection in development mode AND if server is likely running
+    // WebSocket is DISABLED in development to prevent conflicts with Vite HMR
+    // It's only available in production deployments on non-Netlify platforms
     const isDevelopment = import.meta.env.DEV === true;
-    const serverOffline = localStorage.getItem('serverStatus') === 'offline';
-
-    if (isDevelopment && !serverOffline) {
-      // Delay initial connection to allow server to fully start
-      const connectionTimeout = setTimeout(() => {
-        connect();
-      }, 2000); // 2 second delay
-      
-      return () => {
-        clearTimeout(connectionTimeout);
-        disconnect();
-      };
-    } else {
+    
+    // Skip WebSocket entirely in development mode
+    if (isDevelopment) {
       if (process.env.NODE_ENV === 'development') {
-        console.log(serverOffline 
-          ? "⚠️ Server appears offline, skipping WebSocket connection" 
-          : "Live updates via WebSockets are disabled in this environment."
-        );
+        console.log('ℹ️ WebSocket disabled in development (Vite HMR priority). Using HTTP polling for live updates.');
       }
-      setError('Live updates are not available in this environment.');
+      setError('WebSocket disabled in development mode');
+      return;
+    }
+    
+    // In production, check if server is offline
+    const serverOffline = localStorage.getItem('serverStatus') === 'offline';
+    if (serverOffline) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('⚠️ Server appears offline, skipping WebSocket connection');
+      }
+      setError('Server offline');
+      return;
     }
 
+    // Only connect in production
+    const connectionTimeout = setTimeout(() => {
+      connect();
+    }, 2000); // 2 second delay
+    
     return () => {
+      clearTimeout(connectionTimeout);
       disconnect();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps

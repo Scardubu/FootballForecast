@@ -42,8 +42,15 @@ export function DegradedModeBanner() {
           window.dispatchEvent(new Event('serverStatusChange'));
 
           if (data?.status === 'degraded') {
-            setMessage(data?.message || 'Some live features are unavailable until configuration is completed.');
-            setVisible(true);
+            // Check if it's just ML service unavailable (which is optional)
+            if (data?.ml === 'unavailable' && data?.db === 'healthy') {
+              // ML service is optional - don't show degraded mode banner
+              setVisible(false);
+              setMessage(null);
+            } else {
+              setMessage(data?.message || 'Some live features are unavailable until configuration is completed.');
+              setVisible(true);
+            }
           } else {
             setVisible(false);
             setMessage(null);

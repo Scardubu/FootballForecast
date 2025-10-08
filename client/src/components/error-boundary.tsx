@@ -2,6 +2,7 @@ import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertTriangle, RefreshCw, RotateCw } from 'lucide-react';
 
 interface Props {
   children: ReactNode;
@@ -44,7 +45,7 @@ export class ErrorBoundary extends Component<Props, State> {
           <Card className="max-w-lg w-full">
             <CardHeader>
               <CardTitle className="flex items-center space-x-2 text-destructive">
-                <i className="fas fa-exclamation-triangle"></i>
+                <AlertTriangle className="h-5 w-5" aria-hidden="true" />
                 <span>Something went wrong</span>
               </CardTitle>
             </CardHeader>
@@ -69,11 +70,11 @@ export class ErrorBoundary extends Component<Props, State> {
               
               <div className="flex space-x-2">
                 <Button onClick={this.handleRetry} variant="default">
-                  <i className="fas fa-redo mr-2"></i>
+                  <RotateCw className="h-4 w-4 mr-2" aria-hidden="true" />
                   Try Again
                 </Button>
                 <Button onClick={() => window.location.reload()} variant="outline">
-                  <i className="fas fa-refresh mr-2"></i>
+                  <RefreshCw className="h-4 w-4 mr-2" aria-hidden="true" />
                   Refresh Page
                 </Button>
               </div>
@@ -91,7 +92,7 @@ export class ErrorBoundary extends Component<Props, State> {
 export function ErrorFallback({ error, resetError }: { error: Error; resetError: () => void }) {
   return (
     <Alert className="my-4">
-      <i className="fas fa-exclamation-triangle"></i>
+      <AlertTriangle className="h-4 w-4" aria-hidden="true" />
       <AlertDescription className="flex items-center justify-between">
         <span>Failed to load this section</span>
         <Button onClick={resetError} size="sm" variant="outline">

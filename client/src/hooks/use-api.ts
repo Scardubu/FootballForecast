@@ -3,6 +3,9 @@ import { isTestEnv } from '@/lib/env';
 import { getCacheConfig } from '@/lib/queryClient';
 import { MockDataProvider } from '@/lib/mock-data-provider';
 
+// Ensure mocks are only used during development
+const IS_DEV = import.meta.env.DEV === true;
+
 interface ApiState<T> {
   data: T | null;
   loading: boolean;
@@ -93,7 +96,7 @@ export function useApi<T>(
   
   const fetchData = async (attempt = 1, skipCache = false): Promise<void> => {
     // Prevent retry storms - if already in offline mode and multiple retries failed, use mock data
-    if (attempt > 2 && MockDataProvider.isOfflineMode()) {
+    if (IS_DEV && attempt > 2 && MockDataProvider.isOfflineMode()) {
       setState(prev => ({ ...prev, loading: true, error: null }));
       const mockData = await getMockDataForUrl(url.toLowerCase());
       setState({ data: mockData as T, loading: false, error: null });
@@ -104,7 +107,7 @@ export function useApi<T>(
       // Get lowercase URL for consistent path matching
       const path = url.toLowerCase();
       
-      if (MockDataProvider.isOfflineMode()) {
+      if (IS_DEV && MockDataProvider.isOfflineMode()) {
         setState(prev => ({ ...prev, loading: true, error: null }));
         
         // Determine which mock data to return based on the URL
@@ -205,6 +208,23 @@ export function useApi<T>(
         if (timeoutId) clearTimeout(timeoutId as unknown as number);
         
         if (!response.ok) {
+          // Handle 404 - use mock data fallback
+          if (response.status === 404) {
+            console.info(`Resource not found: ${url} - Using fallback data`);
+            if (IS_DEV) {
+              const mockData = await getMockDataForUrl(path);
+              setState({ data: mockData as T, loading: false, error: null });
+            } else {
+              // In production, return safe empty structures instead of mock data
+              let safe: any = {};
+              if (path.includes('/fixtures') || path.includes('/teams') || path.includes('/leagues') || path.includes('/standings')) {
+                safe = [];
+              }
+              setState({ data: safe as T, loading: false, error: null });
+            }
+            return;
+          }
+          
           // Handle rate limiting (429) - use cached data, don't retry
           if (response.status === 429) {
             if (cacheRef.current?.data) {
@@ -262,16 +282,25 @@ export function useApi<T>(
         if (error instanceof DOMException && error.name === 'AbortError') {
           // Only switch to offline mode after multiple attempts to prevent flapping
           if (attempt >= 2) {
-            // Debounced offline mode switching
-            if (attempt === 2) {
-              console.warn(`API request to ${url} timed out after multiple attempts, using offline mode`);
-              localStorage.setItem('serverStatus', 'offline');
-              window.isServerOffline = true;
-              window.dispatchEvent(new Event('serverStatusChange'));
+            if (IS_DEV) {
+              // Debounced offline mode switching (dev only)
+              if (attempt === 2) {
+                console.warn(`API request to ${url} timed out after multiple attempts, using offline mode (dev only)`);
+                localStorage.setItem('serverStatus', 'offline');
+                window.isServerOffline = true;
+                window.dispatchEvent(new Event('serverStatusChange'));
+              }
+              // Use mock data instead of retrying indefinitely (dev only)
+              const mockData = await getMockDataForUrl(path);
+              setState({ data: mockData as T, loading: false, error: null });
+            } else {
+              // In production, return safe empty structures
+              let safe: any = {};
+              if (path.includes('/fixtures') || path.includes('/teams') || path.includes('/leagues') || path.includes('/standings')) {
+                safe = [];
+              }
+              setState({ data: safe as T, loading: false, error: null });
             }
-            // Use mock data instead of retrying indefinitely
-            const mockData = await getMockDataForUrl(path);
-            setState({ data: mockData as T, loading: false, error: null });
             return;
           }
           // First attempt failed - retry once more before giving up
@@ -284,15 +313,23 @@ export function useApi<T>(
         }
 
         if (error instanceof Error && (error.message.includes('fetch') || error.message.includes('network'))) {
-          // Network error - switch to offline mode immediately
-          if (attempt === 1) {
-            console.warn(`Network error for ${url}, using offline mode`);
-            localStorage.setItem('serverStatus', 'offline');
-            window.isServerOffline = true;
-            window.dispatchEvent(new Event('serverStatusChange'));
+          // Network error
+          if (IS_DEV) {
+            if (attempt === 1) {
+              console.warn(`Network error for ${url}, using offline mode (dev only)`);
+              localStorage.setItem('serverStatus', 'offline');
+              window.isServerOffline = true;
+              window.dispatchEvent(new Event('serverStatusChange'));
+            }
+            const mockData = await getMockDataForUrl(path);
+            setState({ data: mockData as T, loading: false, error: null });
+          } else {
+            let safe: any = {};
+            if (path.includes('/fixtures') || path.includes('/teams') || path.includes('/leagues') || path.includes('/standings')) {
+              safe = [];
+            }
+            setState({ data: safe as T, loading: false, error: null });
           }
-          const mockData = await getMockDataForUrl(path);
-          setState({ data: mockData as T, loading: false, error: null });
           return;
         }
 

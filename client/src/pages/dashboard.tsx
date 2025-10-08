@@ -25,6 +25,7 @@ import { Section } from "@/components/layout/section";
 import { Grid } from "@/components/layout/grid";
 import type { Fixture } from "@shared/schema";
 import { SetupRequiredCard } from "@/components/setup-required-card";
+import { AlertTriangle, BarChart3, Database, Gauge, Hourglass, LifeBuoy, Lightbulb, MousePointerClick, Sparkles, Target, Timer, TrendingUp, XCircle } from "lucide-react";
 
 import { DegradedModeBanner } from '@/components/degraded-mode-banner';
 export default function Dashboard() {
@@ -91,7 +92,7 @@ export default function Dashboard() {
             <Card className={cardSurfaceClass}>
               <CardContent className="p-4">
                 <div className="flex items-center space-x-2">
-                  <i className="fas fa-chart-line text-primary"></i>
+                  <TrendingUp className="h-4 w-4 text-primary" aria-hidden="true" />
                   <div>
                     <div className="text-2xl font-bold">{telemetryLoading ? "..." : totalFixtures}</div>
                     <div className="text-sm text-muted-foreground">Fixtures Analyzed</div>
@@ -103,7 +104,7 @@ export default function Dashboard() {
             <Card className={cardSurfaceClass}>
               <CardContent className="p-4">
                 <div className="flex items-center space-x-2">
-                  <i className="fas fa-bullseye text-accent"></i>
+                  <Target className="h-4 w-4 text-accent" aria-hidden="true" />
                   <div>
                     <div className="text-2xl font-bold">{telemetryLoading ? "..." : calibrationRate}</div>
                     <div className="text-sm text-muted-foreground">Calibration Rate</div>
@@ -115,7 +116,7 @@ export default function Dashboard() {
             <Card className={cardSurfaceClass}>
               <CardContent className="p-4">
                 <div className="flex items-center space-x-2">
-                  <i className="fas fa-stopwatch text-success"></i>
+                  <Timer className="h-4 w-4 text-success" aria-hidden="true" />
                   <div>
                     <div className="text-2xl font-bold">{telemetryLoading ? "..." : avgLatency}</div>
                     <div className="text-sm text-muted-foreground">Avg Latency</div>
@@ -127,7 +128,7 @@ export default function Dashboard() {
             <Card className={cardSurfaceClass}>
               <CardContent className="p-4">
                 <div className="flex items-center space-x-2">
-                  <i className="fas fa-exclamation-triangle text-secondary"></i>
+                  <AlertTriangle className="h-4 w-4 text-secondary" aria-hidden="true" />
                   <div>
                     <div className="text-2xl font-bold">{telemetryLoading ? "..." : fallbackCount}</div>
                     <div className="text-sm text-muted-foreground">Fallback Predictions</div>
@@ -143,7 +144,7 @@ export default function Dashboard() {
             <Card className={cardSurfaceClass}>
               <CardContent className="p-4">
                 <div className="flex items-center space-x-2">
-                  <i className="fas fa-database text-primary"></i>
+                  <Database className="h-4 w-4 text-primary" aria-hidden="true" />
                   <div>
                     <div className="text-2xl font-bold">{ingestionLoading ? "..." : totalIngestions}</div>
                     <div className="text-sm text-muted-foreground">Total Ingestion Events</div>
@@ -155,7 +156,7 @@ export default function Dashboard() {
             <Card className={cardSurfaceClass}>
               <CardContent className="p-4">
                 <div className="flex items-center space-x-2">
-                  <i className="fas fa-times-circle text-destructive"></i>
+                  <XCircle className="h-4 w-4 text-destructive" aria-hidden="true" />
                   <div>
                     <div className="text-2xl font-bold">{ingestionLoading ? "..." : failedIngestions}</div>
                     <div className="text-sm text-muted-foreground">Failed Events</div>
@@ -167,7 +168,7 @@ export default function Dashboard() {
             <Card className={cardSurfaceClass}>
               <CardContent className="p-4">
                 <div className="flex items-center space-x-2">
-                  <i className="fas fa-life-ring text-secondary"></i>
+                  <LifeBuoy className="h-4 w-4 text-secondary" aria-hidden="true" />
                   <div>
                     <div className="text-2xl font-bold">{ingestionLoading ? "..." : ingestionFallbacks}</div>
                     <div className="text-sm text-muted-foreground">Fallbacks</div>
@@ -179,7 +180,7 @@ export default function Dashboard() {
             <Card className={cardSurfaceClass}>
               <CardContent className="p-4">
                 <div className="flex items-center space-x-2">
-                  <i className="fas fa-hourglass-half text-accent"></i>
+                  <Hourglass className="h-4 w-4 text-accent" aria-hidden="true" />
                   <div>
                     <div className="text-2xl font-bold">{avgIngestionDurationDisplay}</div>
                     <div className="text-sm text-muted-foreground">Avg Ingestion Duration</div>
@@ -196,7 +197,7 @@ export default function Dashboard() {
               value="overview"
               className="flex items-center justify-center space-x-1 md:space-x-2 text-xs md:text-sm text-muted-foreground data-[state=active]:bg-primary/10 data-[state=active]:text-primary rounded-lg transition-colors"
             >
-              <i className="fas fa-tachometer-alt text-xs md:text-sm" aria-hidden="true"></i>
+              <Gauge className="h-3 w-3 md:h-4 md:w-4" aria-hidden="true" />
               <span className="hidden sm:inline">Overview</span>
               <span className="sm:hidden">Home</span>
             </TabsTrigger>
@@ -204,7 +205,7 @@ export default function Dashboard() {
               value="predictions"
               className="flex items-center justify-center space-x-1 md:space-x-2 text-xs md:text-sm text-muted-foreground data-[state=active]:bg-primary/10 data-[state=active]:text-primary rounded-lg transition-colors"
             >
-              <i className="fas fa-crystal-ball text-xs md:text-sm" aria-hidden="true"></i>
+              <Sparkles className="h-3 w-3 md:h-4 md:w-4" aria-hidden="true" />
               <span className="hidden sm:inline">AI Predictions</span>
               <span className="sm:hidden">AI</span>
               <Badge variant="secondary" className="ml-1 text-xs hidden md:inline">ML</Badge>
@@ -213,7 +214,7 @@ export default function Dashboard() {
               value="analytics"
               className="flex items-center justify-center space-x-1 md:space-x-2 text-xs md:text-sm text-muted-foreground data-[state=active]:bg-primary/10 data-[state=active]:text-primary rounded-lg transition-colors"
             >
-              <i className="fas fa-chart-bar text-xs md:text-sm" aria-hidden="true"></i>
+              <BarChart3 className="h-3 w-3 md:h-4 md:w-4" aria-hidden="true" />
               <span className="hidden sm:inline">Analytics</span>
               <span className="sm:hidden">Stats</span>
             </TabsTrigger>
@@ -221,7 +222,7 @@ export default function Dashboard() {
               value="insights"
               className="flex items-center justify-center space-x-1 md:space-x-2 text-xs md:text-sm text-muted-foreground data-[state=active]:bg-primary/10 data-[state=active]:text-primary rounded-lg transition-colors"
             >
-              <i className="fas fa-lightbulb text-xs md:text-sm" aria-hidden="true"></i>
+              <Lightbulb className="h-3 w-3 md:h-4 md:w-4" aria-hidden="true" />
               <span className="hidden sm:inline">Insights</span>
               <span className="sm:hidden">Data</span>
             </TabsTrigger>
@@ -277,7 +278,7 @@ export default function Dashboard() {
                 ) : (
                   <Card className={cardSurfaceClass}>
                     <CardContent className="p-8 text-center">
-                      <i className="fas fa-mouse-pointer text-4xl text-muted-foreground mb-4"></i>
+                      <MousePointerClick className="mx-auto mb-4 h-10 w-10 text-muted-foreground" aria-hidden="true" />
                       <h3 className="text-lg font-semibold text-foreground mb-2">
                         Select a Match
                       </h3>

@@ -1,8 +1,5 @@
-import { differenceInMinutes, parseISO } from "date-fns";
-import { logger } from "../middleware/logger.js";
-import { apiFootballClient } from "./apiFootballClient.js";
-import { storage } from "../storage.js";
-import { PredictionEngine, type EnhancedPrediction } from "./predictionEngine.js";
+import { differenceInMinutes, parseISO } from 'date-fns';
+import { logger } from '../middleware/logger.js';
 import type { Prediction, Fixture, Team } from "../../shared/schema.js";
 import { TOP_LEAGUES } from "../lib/data-seeder.js";
 import {
@@ -11,22 +8,22 @@ import {
   failIngestionEvent
 } from "../lib/ingestion-tracker.js";
 
-const predictionEngine = new PredictionEngine();
+// Import storage
+import { storage } from "../storage.js";
+import { apiFootballClient } from "./apiFootballClient.js";
 
 const UPCOMING_FIXTURE_LOOKAHEAD = parseInt(process.env.PREDICTION_FIXTURE_LOOKAHEAD || "5", 10);
 const PREDICTION_REFRESH_MINUTES = parseInt(process.env.PREDICTION_REFRESH_MINUTES || "90", 10);
 const RECENT_MATCH_SAMPLE = parseInt(process.env.PREDICTION_RECENT_MATCH_SAMPLE || "8", 10);
 const SYNC_INTERVAL_MINUTES = parseInt(process.env.PREDICTION_SYNC_INTERVAL_MINUTES || "15", 10);
-
 const updatedTeamsThisRun = new Set<number>();
 
 export async function syncUpcomingPredictions(): Promise<void> {
   const start = Date.now();
   const season = determineSeason();
-
-  let fixturesProcessed = 0;
   let predictionsUpdated = 0;
   let teamsIngested = 0;
+  let fixturesProcessed = 0;
 
   const fixturesNeedingPrediction = new Set<number>();
 
@@ -41,7 +38,26 @@ export async function syncUpcomingPredictions(): Promise<void> {
 
   try {
     for (const league of TOP_LEAGUES) {
-      const matches = await fetchUpcomingFixtures(league.id, season);
+      let matches = [];
+      try {
+        matches = await fetchUpcomingFixtures(league.id, season);
+        
+        // If no matches returned, skip this league (expected for free API plans)
+        if (!matches || matches.length === 0) {
+          logger.info({ leagueId: league.id }, "No upcoming fixtures available for league (expected with free API plans)");
+          continue;
+        }
+      } catch (error: any) {
+        // Skip league if API limit reached or other errors
+        if (error?.message?.includes('API_LIMIT_REACHED') || error?.message?.includes('API_PLAN_LIMIT')) {
+          logger.warn({ leagueId: league.id, error: error.message }, "Skipping league due to API limitation");
+          continue;
+        }
+        // Don't throw - just log and continue with next league
+        logger.info({ leagueId: league.id, error: error.message }, "Skipping league due to API error");
+        continue;
+      }
+      
       for (const match of matches) {
         fixturesProcessed += 1;
 
@@ -54,7 +70,7 @@ export async function syncUpcomingPredictions(): Promise<void> {
             country: league.country,
             logo: match.league.logo ?? null,
             flag: match.league.flag ?? null,
-            season,
+            season: season || 2023, // Ensure season is never null
             type: match.league.type ?? "League",
           }),
           ingestTeam(homeTeam).then((changed) => {
@@ -67,10 +83,12 @@ export async function syncUpcomingPredictions(): Promise<void> {
 
         await storage.updateFixture(fixture);
 
-        await Promise.all([
-          ensureRecentMatches(homeTeam.id, season),
-          ensureRecentMatches(awayTeam.id, season),
-        ]);
+        // Skip recent matches fetch to avoid API rate limits during sync
+        // Recent matches will be fetched on-demand when predictions are requested
+        // await Promise.all([
+        //   ensureRecentMatches(homeTeam.id, season),
+        //   ensureRecentMatches(awayTeam.id, season),
+        // ]);
 
         if (await needsPredictionRefresh(fixture.id)) {
           fixturesNeedingPrediction.add(fixture.id);
@@ -78,21 +96,8 @@ export async function syncUpcomingPredictions(): Promise<void> {
       }
     }
 
-    const fixtureIds = Array.from(fixturesNeedingPrediction);
-    const existingPredictionMap = await loadExistingPredictions(fixtureIds);
-
-    const batchResults = await predictionEngine.generateBatchPredictions(fixtureIds);
-
-    for (const fixtureId of fixtureIds) {
-      const enhancedResult = batchResults.get(fixtureId) ?? (await fallbackGeneratePrediction(fixtureId));
-      if (!enhancedResult) {
-        continue;
-      }
-
-      const existing = existingPredictionMap.get(fixtureId);
-      await writePredictionRecord(enhancedResult, existing?.id);
-      predictionsUpdated += 1;
-    }
+    // For free plan/dev mode: skip ML/batch prediction generation.
+    // Predictions will be created on-demand via API when requested.
 
     const duration = Date.now() - start;
 
@@ -132,96 +137,100 @@ export async function syncUpcomingPredictions(): Promise<void> {
   }
 }
 
-function buildPredictionRecord(enhanced: EnhancedPrediction, existingId?: string): Prediction {
-  const outcomeScores = {
-    home: enhanced.predictions.homeWin,
-    draw: enhanced.predictions.draw,
-    away: enhanced.predictions.awayWin,
-  };
+// buildPredictionRecord removed (batch prediction writing disabled in free-plan/dev mode)
 
-  const predictedOutcome = Object.entries(outcomeScores).sort((a, b) => b[1] - a[1])[0][0];
-
-  const confidenceMap: Record<string, number> = {
-    high: 90,
-    medium: 70,
-    low: 50,
-  };
-
-  const confidenceValue = confidenceMap[enhanced.predictions.confidence] ?? 60;
-
-  const record: Prediction = {
-    id: existingId ?? `pred-${enhanced.fixtureId}`,
-    fixtureId: enhanced.fixtureId,
-    homeWinProbability: String(Math.round(enhanced.predictions.homeWin)),
-    drawProbability: String(Math.round(enhanced.predictions.draw)),
-    awayWinProbability: String(Math.round(enhanced.predictions.awayWin)),
-    expectedGoalsHome: Number(enhanced.insights.expectedGoals.home).toFixed(2),
-    expectedGoalsAway: Number(enhanced.insights.expectedGoals.away).toFixed(2),
-    bothTeamsScore: String(Math.round(enhanced.additionalMarkets.btts ?? enhanced.additionalMarkets.bothTeamsToScore ?? 50)),
-    over25Goals: String(Math.round(enhanced.additionalMarkets.over25Goals ?? 50)),
-    confidence: String(confidenceValue),
-    mlModel: "hybrid-ml-v2",
-    predictedOutcome,
-    latencyMs: null,
-    serviceLatencyMs: null,
-    modelCalibrated: true,
-    modelTrained: true,
-    calibrationMetadata: {
-      dataQuality: enhanced.reasoning?.dataQuality ?? null,
-      generatedAt: new Date().toISOString(),
-      sources: enhanced.reasoning?.dataQuality?.sources ?? [],
-    },
-    createdAt: new Date(),
-    aiInsight: buildInsightSummary(enhanced),
-  };
-
-  return record;
-}
-
-function buildInsightSummary(enhanced: any): string {
-  const factors = enhanced.reasoning?.topFactors?.slice(0, 3) ?? [];
-  if (factors.length === 0) {
-    return `Model favors ${enhanced.predictions.homeWin > enhanced.predictions.awayWin ? enhanced.homeTeam : enhanced.awayTeam}`;
-  }
-
-  const factorSummary = factors
-    .map((factor: any) => `${factor.factor}: ${factor.description ?? "key influence"}`)
-    .join(" | ");
-
-  return `${enhanced.homeTeam} vs ${enhanced.awayTeam} – ${factorSummary}`;
-}
+// buildInsightSummary removed along with batch prediction writer utilities
 
 function determineSeason(): number {
-  // Free API plan only supports seasons 2021-2023
-  // Use 2023 as the latest supported season for historical data
-  return 2023;
+  // Determine current season based on date
+  // Football seasons typically run from August to May
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1; // JavaScript months are 0-indexed
+  
+  // If we're in January-July, we're still in the previous year's season
+  // If we're in August-December, we're in the current year's season
+  const season = currentMonth >= 8 ? currentYear : currentYear - 1;
+  
+  // For free API plans that only support historical data (2021-2023),
+  // cap the season to 2023 and use date-based queries without season parameter
+  const maxSupportedSeason = 2023;
+  
+  // Return current season for metadata, but API queries will use date-based approach
+  return Math.min(season, maxSupportedSeason);
 }
 
 export function startPredictionSyncScheduler(): void {
+  // Allow disabling prediction sync via environment variable
+  // Useful for free API plans to conserve quota
+  const disableSync = (process.env.DISABLE_PREDICTION_SYNC || '').toLowerCase() === 'true';
+  
+  if (disableSync) {
+    logger.info('Prediction sync disabled via DISABLE_PREDICTION_SYNC environment variable');
+    logger.info('Application will use on-demand fallback predictions only');
+    logger.info('To enable prediction sync, set DISABLE_PREDICTION_SYNC=false in .env');
+    return;
+  }
+  
   const intervalMs = SYNC_INTERVAL_MINUTES * 60 * 1000;
   setInterval(() => {
     syncUpcomingPredictions().catch((error) => {
-      logger.error({ error }, "Scheduled prediction sync failed");
+      logger.warn({ error: error.message }, "Scheduled prediction sync failed (expected with free API plans)");
     });
   }, intervalMs);
 
-  // Trigger an initial sync without awaiting (fire and forget)
-  syncUpcomingPredictions().catch((error) => {
-    logger.error({ error }, "Initial prediction sync failed");
-  });
+  // Trigger an initial sync with delay to avoid startup congestion
+  setTimeout(() => {
+    syncUpcomingPredictions().catch((error) => {
+      logger.warn({ error: error.message }, "Initial prediction sync failed (expected with free API plans)");
+    });
+  }, 30000); // Wait 30 seconds after startup
 
   logger.info({ intervalMs: SYNC_INTERVAL_MINUTES }, "Prediction sync scheduler started");
+  logger.info('Note: Free API plans may not have current fixture data. Application will use fallback predictions.');
 }
 
 async function fetchUpcomingFixtures(leagueId: number, season: number) {
-  const nextParam = Math.max(1, Math.min(UPCOMING_FIXTURE_LOOKAHEAD, 20));
-  const endpoint = `fixtures?league=${leagueId}&season=${season}&next=${nextParam}`;
-  const response = await apiFootballClient.request<any>(endpoint);
-  if (!response?.response || !Array.isArray(response.response)) {
-    logger.warn({ leagueId, season }, "No upcoming fixtures returned from API-Football");
+  // Free API plan limitations:
+  // - Doesn't support 'next' parameter  
+  // - Only supports historical seasons 2021-2023
+  // - For current/future fixtures, use date query without season parameter
+  // - Empty responses are expected for future dates with free plans
+  
+  const today = new Date();
+  const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+  
+  const fromDate = today.toISOString().split('T')[0];
+  const toDate = nextWeek.toISOString().split('T')[0];
+  
+  // Query current fixtures by date range (no season parameter for current data)
+  // Free plans may not have data for current/future dates
+  const endpoint = `fixtures?league=${leagueId}&from=${fromDate}&to=${toDate}`;
+  
+  try {
+    const response = await apiFootballClient.request<any>(endpoint);
+    
+    // Handle empty response gracefully - this is expected for free plans
+    if (!response?.response || !Array.isArray(response.response) || response.response.length === 0) {
+      logger.info({ leagueId, fromDate, toDate }, "No upcoming fixtures available (expected for free API plans)");
+      return [];
+    }
+    
+    // Filter for upcoming fixtures only (not finished)
+    const upcomingFixtures = response.response
+      .filter((match: any) => {
+        const status = match.fixture?.status?.short;
+        return status === 'NS' || status === 'TBD' || status === 'PST';
+      })
+      .slice(0, UPCOMING_FIXTURE_LOOKAHEAD);
+    
+    logger.info({ leagueId, count: upcomingFixtures.length }, "Fetched upcoming fixtures");
+    return upcomingFixtures;
+  } catch (error: any) {
+    // If API call fails, return empty array (application will use fallback data)
+    logger.info({ leagueId, error: error.message }, "API request failed, using fallback data");
     return [];
   }
-  return response.response;
 }
 
 function mapApiFixture(match: any, league: { id: number; name: string; country: string }): {
@@ -333,13 +342,14 @@ async function ensureRecentMatches(teamId: number, season: number): Promise<void
 
       const { fixture, homeTeam, awayTeam } = mapApiFixture(match, league);
       await Promise.all([
-        storage.updateLeague({
+        // League data - ensure season is provided
+        await storage.updateLeague({
           id: league.id,
           name: league.name,
           country: league.country,
           logo: match.league.logo ?? null,
           flag: match.league.flag ?? null,
-          season,
+          season: supportedSeason, // Ensure season is never null in this scope
           type: match.league.type ?? "League",
         }),
         ingestTeam(homeTeam),
@@ -366,27 +376,5 @@ async function needsPredictionRefresh(fixtureId: number): Promise<boolean> {
   return minutesSinceCreation >= PREDICTION_REFRESH_MINUTES;
 }
 
-async function loadExistingPredictions(fixtureIds: number[]): Promise<Map<number, Prediction>> {
-  const map = new Map<number, Prediction>();
-  for (const fixtureId of fixtureIds) {
-    const predictions = await storage.getPredictions(fixtureId);
-    if (predictions.length > 0) {
-      map.set(fixtureId, predictions[0]);
-    }
-  }
-  return map;
-}
-
-async function fallbackGeneratePrediction(fixtureId: number): Promise<EnhancedPrediction | null> {
-  try {
-    return await predictionEngine.generatePrediction(fixtureId);
-  } catch (error) {
-    logger.warn({ fixtureId, error }, "Fallback single prediction generation failed");
-    return null;
-  }
-}
-
-async function writePredictionRecord(enhanced: EnhancedPrediction, existingId?: string): Promise<void> {
-  const record = buildPredictionRecord(enhanced, existingId);
-  await storage.updatePrediction(record);
-}
+// Prediction record utilities removed for free-plan/dev mode. Predictions are
+// generated on-demand via API; batch writing is disabled to conserve quota.

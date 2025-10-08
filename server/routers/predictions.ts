@@ -175,8 +175,19 @@ predictionsRouter.get("/:fixtureId", asyncHandler(async (req, res) => {
 
     // 4. If ML service fails, decide whether to fallback or return 503
     if (!mlResponse) {
-      if (mlClient.isFallbackAllowed()) {
-        logger.warn(`ML prediction failed for fixture ${fixtureId}. Generating fallback.`);
+      const isProduction = process.env.NODE_ENV === 'production';
+      
+      if (isProduction) {
+        // PRODUCTION: Never use fallback - return 503 to indicate service unavailable
+        logger.error(`ML prediction failed for fixture ${fixtureId} in production. No fallback allowed.`);
+        return res.status(503).json({
+          error: 'ML service unavailable',
+          message: 'Prediction service is temporarily unavailable. Please try again later.',
+          fixtureId: fixtureId
+        });
+      } else if (mlClient.isFallbackAllowed()) {
+        // DEVELOPMENT: Use fallback for testing
+        logger.warn(`ML prediction failed for fixture ${fixtureId}. Generating fallback (development only).`);
         mlResponse = mlClient.generateFallbackPrediction(mlRequest);
       } else {
         return res.status(503).json({

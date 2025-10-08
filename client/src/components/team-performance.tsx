@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth-context";
 import type { TeamStats, Team } from "@/lib/types";
 import { useTelemetrySummary } from "@/hooks/use-telemetry";
 import { formatCalibrationRate, formatLatency } from "@/lib/telemetry-metrics";
+import { AlertTriangle } from "lucide-react";
 
 export function TeamPerformance() {
   const { auth, isLoading: authLoading } = useAuth();
@@ -51,7 +52,7 @@ export function TeamPerformance() {
       <Card>
         <CardContent className="p-6">
           <div className="p-8 bg-destructive/10 rounded text-destructive text-center">
-            <i className="fas fa-exclamation-triangle text-3xl mb-2"></i>
+            <AlertTriangle className="mx-auto mb-2 h-10 w-10" aria-hidden="true" />
             <div className="font-semibold">Unable to load team performance</div>
             <div className="text-sm text-muted-foreground">{error instanceof Error ? error.message : 'Network error. Please try again later.'}</div>
           </div>
@@ -91,6 +92,10 @@ export function TeamPerformance() {
                 <img 
                   src={team.logo} 
                   alt={team.name}
+                  width={32}
+                  height={32}
+                  loading="lazy"
+                  decoding="async"
                   className="w-8 h-8 rounded-full object-cover"
                   data-testid="featured-team-logo"
                 />

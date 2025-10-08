@@ -29,30 +29,18 @@ function killLockingProcesses() {
   
   if (isWindows) {
     try {
-      // Find and kill any Node.js processes that might be locking files
-      console.log('🔍 Checking for locking processes...');
+      // Don't kill all node processes - this would kill the build itself!
+      // Instead, just try to unlock files in the dist directory
+      console.log('🔍 Attempting to unlock files in dist directory...');
       
-      // Kill any development servers or build processes
-      const commands = [
-        'taskkill /f /im node.exe /t 2>nul || echo "No node processes to kill"',
-        'taskkill /f /im tsx.exe /t 2>nul || echo "No tsx processes to kill"',
-        'taskkill /f /im vite.exe /t 2>nul || echo "No vite processes to kill"'
-      ];
+      // Use handle.exe if available, otherwise skip this step
+      // Most builds won't need this aggressive cleanup
       
-      commands.forEach(cmd => {
-        try {
-          execSync(cmd, { stdio: 'inherit' });
-        } catch (err) {
-          // Ignore errors - process might not exist
-        }
-      });
-      
-      // Wait a moment for processes to fully terminate
-      console.log('⏳ Waiting for processes to terminate...');
-      execSync('timeout /t 2 /nobreak >nul', { stdio: 'ignore' });
+      // Wait a brief moment for any file handles to release
+      execSync('timeout /t 1 /nobreak >nul 2>&1', { stdio: 'ignore' });
       
     } catch (err) {
-      console.log('⚠️  Could not kill all processes, continuing...');
+      // Silently continue - this is optional
     }
   }
 }
@@ -77,11 +65,11 @@ async function removeDirectoryWithRetry(dirPath, maxRetries = 5) {
         try {
           // Strategy 1: PowerShell with force and error handling
           const psCommand = `
-            $ErrorActionPreference = 'SilentlyContinue'
+            $ErrorActionPreference = 'SilentlyContinue';
             if (Test-Path '${dirPath.replace(/'/g, "''")}') {
               Get-ChildItem -Path '${dirPath.replace(/'/g, "''")}' -Recurse | ForEach-Object {
                 $_.Attributes = 'Normal'
-              }
+              };
               Remove-Item -Path '${dirPath.replace(/'/g, "''")}' -Recurse -Force
             }
           `.replace(/\s+/g, ' ').trim();

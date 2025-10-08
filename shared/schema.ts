@@ -289,14 +289,14 @@ export const mlPredictionResponseSchema = z.object({
   model_version: z.string(),
   model_trained: z.boolean().optional(),
   explanation: z.string().optional(),
-  latency_ms: z.number().optional(),
-  service_latency_ms: z.number().optional(),
-  model_calibrated: z.boolean().optional(),
+  latency_ms: z.number().nullable().optional(),
+  service_latency_ms: z.number().nullable().optional(),
+  model_calibrated: z.boolean().nullable().optional(),
   calibration: z.object({
     method: z.string().optional(),
     temperature: z.number().optional(),
     applied: z.boolean().optional()
-  }).optional()
+  }).nullable().optional()
 });
 
 export const mlTrainingRequestSchema = z.object({

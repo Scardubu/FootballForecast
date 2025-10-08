@@ -1,13 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { MatchTeamsDisplay } from "@/components/team-display";
-import { PredictionCardSkeleton } from "@/components/loading";
-import type { Prediction } from "@shared/schema";
+import { TeamDisplay } from "@/components/team-display";
+import type { Fixture, Team, Prediction } from "@shared/schema";
+import { Brain, Lightbulb, Scale, Timer } from "lucide-react";
 import { apiClient } from "@/lib/api-client";
 import type { APIFixture, APITeamData } from "@/lib/api-football-types";
+import { MatchTeamsDisplay } from "@/components/team-display";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface PredictionCardProps {
   fixture: APIFixture['fixture'];
@@ -38,7 +40,27 @@ export function PredictionCard({ fixture, homeTeam, awayTeam }: PredictionCardPr
     : undefined;
   const calibrationApplied = calibration?.applied ?? calibration?.applied === undefined ? true : calibration.applied;
 
-  if (isLoading) return <PredictionCardSkeleton />;
+  if (isLoading) return (
+    <Card className="glass-effect animate-pulse">
+      <CardContent className="px-6 py-8 space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="flex-1">
+            <Skeleton className="h-6 w-48" />
+          </div>
+          <Skeleton className="h-4 w-24" />
+        </div>
+        <div className="grid grid-cols-3 gap-4">
+          <Skeleton className="h-6 w-20 mx-auto" />
+          <Skeleton className="h-6 w-20 mx-auto" />
+          <Skeleton className="h-6 w-20 mx-auto" />
+        </div>
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-3/4" />
+        </div>
+      </CardContent>
+    </Card>
+  );
   if (error) {
     // Render a disabled/error state for this specific card
     return (
@@ -142,7 +164,7 @@ export function PredictionCard({ fixture, homeTeam, awayTeam }: PredictionCardPr
               </span>
               <Tooltip>
                 <TooltipTrigger>
-                  <i className="fas fa-brain text-accent text-xs cursor-help"></i>
+                  <Brain className="h-3 w-3 text-accent" aria-hidden="true" />
                 </TooltipTrigger>
                 <TooltipContent>
                   <p>ML model confidence based on data quality and feature strength</p>
@@ -155,7 +177,7 @@ export function PredictionCard({ fixture, homeTeam, awayTeam }: PredictionCardPr
             <div className="grid grid-cols-1 gap-2 text-xs text-muted-foreground bg-muted/40 rounded-lg p-3">
               {latency !== null && (
                 <div className="flex items-center space-x-2" data-testid={`latency-${fixture.id}`}>
-                  <i className="fas fa-stopwatch" aria-hidden />
+                  <Timer className="h-3 w-3" aria-hidden="true" />
                   <span>
                     Latency: <span className="font-medium text-foreground">{latency} ms</span>
                   </span>
@@ -163,7 +185,7 @@ export function PredictionCard({ fixture, homeTeam, awayTeam }: PredictionCardPr
               )}
               {calibration && (
                 <div className="flex items-center space-x-2" data-testid={`calibration-${fixture.id}`}>
-                  <i className="fas fa-balance-scale" aria-hidden />
+                  <Scale className="h-3 w-3" aria-hidden="true" />
                   <span>
                     Calibration {calibrationApplied ? "applied" : "ready"}
                     {calibration.method && ` • ${calibration.method}`}
@@ -209,7 +231,7 @@ export function PredictionCard({ fixture, homeTeam, awayTeam }: PredictionCardPr
 
           <div className="mt-4 p-3 bg-accent/10 rounded-lg border border-accent/20">
             <div className="flex items-start space-x-2">
-              <i className="fas fa-lightbulb text-accent mt-0.5"></i>
+              <Lightbulb className="h-4 w-4 text-accent mt-0.5" aria-hidden="true" />
               <div>
                 <div className="text-sm font-medium text-accent mb-1">AI Insight</div>
                 <div className="text-xs text-muted-foreground leading-relaxed">

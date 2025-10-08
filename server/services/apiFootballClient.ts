@@ -154,8 +154,15 @@ export class ApiFootballClient {
       }
 
       // Check for empty response
+      // Note: Empty responses are expected for free API plans querying current/future data
+      // Don't treat this as a failure - just return the empty response
       if (!data.response || (Array.isArray(data.response) && data.response.length === 0)) {
-        throw new Error('API_EMPTY_RESPONSE: No data returned from API');
+        logger.info({ endpoint: endpoint }, 'API returned empty response (expected for free plans with current/future data)');
+        // Don't throw error - return empty response and let caller handle it
+        // This prevents circuit breaker from triggering on expected empty responses
+        this.recordSuccess(); // Reset circuit breaker since API call was successful
+        this.cacheData(cacheKey, data, endpoint);
+        return data;
       }
 
       // Success - reset circuit breaker and cache result
@@ -291,8 +298,22 @@ export class ApiFootballClient {
       return staleEntry.data;
     }
     
-    // Generate enhanced fallback response based on endpoint
-    logger.warn({ endpoint: endpoint }, 'Generating enhanced fallback response');
+    // In production, do not generate fallback data - return empty response
+    const isProduction = process.env.NODE_ENV === 'production';
+    if (isProduction) {
+      logger.warn({ endpoint: endpoint }, 'Production mode: returning empty response instead of fallback');
+      return {
+        get: endpoint,
+        parameters: {},
+        errors: [],
+        results: 0,
+        paging: { current: 1, total: 1 },
+        response: [] as unknown as T
+      };
+    }
+    
+    // Generate enhanced fallback response based on endpoint (dev/test only)
+    logger.warn({ endpoint: endpoint }, 'Development mode: generating enhanced fallback response');
     
     // Import enhanced fallback data dynamically
     let fallbackResponse: any[] = [];

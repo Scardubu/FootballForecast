@@ -1,13 +1,24 @@
 [build]
   base = "."
   publish = "dist/public"
-  command = "npm run build"
+  command = "npm ci && npm run build"
 
 [build.environment]
   # Do NOT place actual secrets here - use Netlify UI environment settings
   NODE_VERSION = "18.18.0"
   NPM_VERSION = "9.8.0"
   VITE_NETLIFY_BUILD = "true" # Explicit flag for Netlify environment
+  NPM_FLAGS = "--legacy-peer-deps"
+
+# Plugin configuration - disable problematic image optimizer
+[[plugins]]
+  package = "netlify-plugin-cloudinary"
+  
+[[plugins]]
+  package = "@netlify/plugin-lighthouse"
+
+# Disable image-optim plugin that's causing build failures
+# To fully remove, go to: Site Settings > Plugins in Netlify UI
   
 [functions]
   directory = "netlify/functions"
@@ -33,7 +44,7 @@
     X-Frame-Options = "DENY"
     Referrer-Policy = "strict-origin-when-cross-origin"
     Permissions-Policy = "geolocation=(), microphone=(), camera=(), payment=(), usb=()"
-    Content-Security-Policy = "default-src 'self'; script-src 'self' https: 'unsafe-inline' 'unsafe-eval'; style-src 'self' https: 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' https: data:; connect-src 'self' https:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https: wss: ws:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
 
 [dev]
   command = "npm run dev:netlify"
@@ -47,7 +58,6 @@
   from = "/api/*"
   to = "/.netlify/functions/api/:splat"
   status = 200
-  force = true
 
 [[redirects]]
   from = "/favicon.ico"

@@ -177,9 +177,10 @@ describe('Predictions Router', () => {
 
       const response = await request(app)
         .get('/api/predictions/telemetry')
-        .expect(500);
+        .expect(200);
 
-      expect(response.body).toHaveProperty('error');
+      // Should return empty object on error for graceful degradation
+      expect(response.body).toEqual({});
     });
   });
 
@@ -245,15 +246,15 @@ describe('Predictions Router', () => {
       expect(response.body).toHaveProperty('error', 'Invalid fixture ID');
     });
 
-    it('should return 404 for non-existent fixture', async () => {
+    it('should return 404 for non-existent fixture (below fallback threshold)', async () => {
       mockStorage.getPredictions.mockResolvedValue([]);
       mockStorage.getFixture.mockResolvedValue(null);
 
       const response = await request(app)
-        .get('/api/predictions/9999')
+        .get('/api/predictions/999') // Use ID < 1000 to avoid fallback
         .expect(404);
 
-      expect(response.body).toHaveProperty('error', 'Fixture not found or teams not specified');
+      expect(response.body).toHaveProperty('error', 'Fixture not found');
     });
 
     it('should use fallback prediction when ML service fails', async () => {

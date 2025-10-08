@@ -93,21 +93,9 @@ function ImportErrorFallback() {
 }
 
 function AppRoutes() {
-  const { isLoading, error } = useAuth();
-  if (isLoading) {
-    return <SimpleLoading message="Authenticating..." />;
-  }
-  if (error) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-background">
-        <div className="text-center">
-          <h2 className="text-xl font-bold text-destructive mb-2">Authentication Error</h2>
-          <p className="text-muted-foreground mb-4">{error}</p>
-          <button className="px-4 py-2 rounded bg-primary text-primary-foreground" onClick={() => window.location.reload()}>Retry</button>
-        </div>
-      </div>
-    );
-  }
+  const { isLoading } = useAuth();
+  
+  // Don't block rendering - show content immediately with loading overlay if needed
   return (
     <AppLayout>
       <ErrorBoundary fallback={<ImportErrorFallback />}>

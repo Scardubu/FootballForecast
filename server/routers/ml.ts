@@ -53,7 +53,19 @@ mlRouter.post("/predict", asyncHandler(async (req: Request, res: Response) => {
     
     // Fallback if ML service fails
     if (!prediction) {
-      console.warn(`🔄 ML service unavailable, using fallback prediction for fixture ${validatedRequest.fixture_id}`);
+      const isProduction = process.env.NODE_ENV === 'production';
+      
+      if (isProduction) {
+        // PRODUCTION: Never use fallback - return error
+        return res.status(503).json({
+          error: 'ML service unavailable',
+          message: 'Prediction service is temporarily unavailable. Please try again later.',
+          fixtureId: validatedRequest.fixture_id
+        });
+      }
+      
+      // DEVELOPMENT: Use fallback for testing
+      console.warn(`🔄 ML service unavailable, using fallback prediction for fixture ${validatedRequest.fixture_id} (development only)`);
       prediction = mlClient.generateFallbackPrediction(validatedRequest);
     }
     
@@ -117,7 +129,19 @@ mlRouter.post("/predict/batch", asyncHandler(async (req, res) => {
     
     // Fallback if ML service fails - generate individual fallbacks
     if (predictions.length === 0 && validatedRequest.requests.length > 0) {
-      console.warn(`🔄 ML service unavailable, generating ${validatedRequest.requests.length} fallback predictions`);
+      const isProduction = process.env.NODE_ENV === 'production';
+      
+      if (isProduction) {
+        // PRODUCTION: Never use fallback - return error
+        return res.status(503).json({
+          error: 'ML service unavailable',
+          message: 'Batch prediction service is temporarily unavailable. Please try again later.',
+          requestCount: validatedRequest.requests.length
+        });
+      }
+      
+      // DEVELOPMENT: Use fallback for testing
+      console.warn(`🔄 ML service unavailable, generating ${validatedRequest.requests.length} fallback predictions (development only)`);
       predictions = validatedRequest.requests.map(req => mlClient.generateFallbackPrediction(req));
     }
     

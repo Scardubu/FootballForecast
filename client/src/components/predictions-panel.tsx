@@ -1,17 +1,20 @@
-import React from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { ErrorBoundary, ErrorFallback } from "@/components/error-boundary";
-import { PredictionCardSkeleton } from "@/components/loading";
+import { useAuth } from "@/lib/auth-context";
+import { PredictionCard } from "@/components/prediction-card";
+import { OfflineIndicator } from "@/components/offline-indicator";
+import type { Fixture } from "@shared/schema";
+import { Info, Sparkles } from "lucide-react";
 import { Grid } from "@/components/layout/grid";
 import { useApi } from "@/hooks/use-api";
 import { useLeagueStore } from "@/hooks/use-league-store";
-import { OfflineIndicator } from "@/components/offline-indicator";
 import type { Prediction } from "@shared/schema";
 import type { APIFixture, APITeamData } from "@/lib/api-football-types";
-import { PredictionCard } from "@/components/prediction-card";
 import { Badge } from "@/components/ui/badge";
 import { useMemo } from "react";
+import { ErrorBoundary, ErrorFallback } from "@/components/error-boundary";
 
 interface FixtureResponse {
   response: APIFixture[];
@@ -103,7 +106,20 @@ export function PredictionsPanel() {
       <div className="animate-fade-in">
         <Grid cols={{ base: 1 }} gap={6}>
           {[...Array(2)].map((_, i) => (
-            <PredictionCardSkeleton key={i} />
+            <Card key={i} className="glass-effect animate-pulse">
+              <CardContent className="p-6 space-y-4">
+                <div className="flex justify-between">
+                  <Skeleton className="h-6 w-40" />
+                  <Skeleton className="h-4 w-20" />
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  <Skeleton className="h-6" />
+                  <Skeleton className="h-6" />
+                  <Skeleton className="h-6" />
+                </div>
+                <Skeleton className="h-4 w-full" />
+              </CardContent>
+            </Card>
           ))}
         </Grid>
       </div>
@@ -112,12 +128,12 @@ export function PredictionsPanel() {
 
   return (
     <ErrorBoundary>
-      <div>
+      <div className="cv-auto">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center space-x-2">
             <Tooltip>
               <TooltipTrigger>
-                <i className="fas fa-info-circle text-muted-foreground cursor-help" data-testid="predictions-info"></i>
+                <Info className="h-4 w-4 text-muted-foreground" aria-hidden="true" data-testid="predictions-info" />
               </TooltipTrigger>
               <TooltipContent>
                 <p>Predictions based on team form, head-to-head stats, and advanced analytics</p>
@@ -165,7 +181,7 @@ export function PredictionsPanel() {
             {(!fixtures || fixtures.length === 0) && (
               <Card>
                 <CardContent className="p-8 text-center">
-                  <i className="fas fa-crystal-ball text-4xl text-muted-foreground mb-4"></i>
+                  <Sparkles className="mx-auto mb-4 h-10 w-10 text-muted-foreground" aria-hidden="true" />
                   <h3 className="text-lg font-semibold text-foreground mb-2">No Predictions Available</h3>
                   <p className="text-muted-foreground">Predictions will appear when upcoming matches are scheduled.</p>
                 </CardContent>

@@ -11,14 +11,15 @@ if (process.platform === 'win32' && process.stdout.isTTY) {
   }
 }
 
-console.log('[*] Bootstrapping server entry');
-
 import { server as serverConfig } from './config/index';
 import { validateConfigOrExit } from './lib/config-validator';
 import express from 'express';
 import { createServer } from 'http';
 import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
+import logger from './middleware/logger';
+
+logger.info('[*] Bootstrapping server entry');
 
 // Dynamically import WebSocket if the file exists
 type WebSocketModule = {
@@ -33,9 +34,9 @@ async function loadWebSocketModule(): Promise<WebSocketModule | null> {
 
   if (isDevelopment) {
     try {
-      console.log('[INFO] Attempting to load WebSocket module from ./websocket');
+      logger.debug('[INFO] Attempting to load WebSocket module from ./websocket');
       const module = await import('./websocket');
-      console.log('[OK] WebSocket module resolved from ./websocket');
+      logger.debug('[OK] WebSocket module resolved from ./websocket');
       return module as WebSocketModule;
     } catch (error: any) {
       const isModuleMissing =
@@ -43,18 +44,18 @@ async function loadWebSocketModule(): Promise<WebSocketModule | null> {
         typeof error?.message === 'string' && /Cannot find module/i.test(error.message);
 
       if (!isModuleMissing) {
-        console.warn('[WARN] Failed to load WebSocket module from ./websocket:', error);
+        logger.warn({ err: error }, '[WARN] Failed to load WebSocket module from ./websocket');
         return null;
       }
 
-      console.warn('[WARN] ./websocket not found, attempting to load compiled module');
+      logger.debug('[WARN] ./websocket not found, attempting to load compiled module');
     }
   }
 
   try {
-    console.log('[INFO] Attempting to load WebSocket module from ./websocket');
+    logger.debug('[INFO] Attempting to load WebSocket module from ./websocket');
     const module = await import('./websocket');
-    console.log('[OK] WebSocket module resolved from ./websocket');
+    logger.debug('[OK] WebSocket module resolved from ./websocket');
     return module as WebSocketModule;
   } catch (error: any) {
     const isModuleMissing =
@@ -62,11 +63,11 @@ async function loadWebSocketModule(): Promise<WebSocketModule | null> {
       typeof error?.message === 'string' && /Cannot find module/i.test(error.message);
 
     if (isModuleMissing) {
-      console.warn('[WARN] WebSocket module not found, real-time updates will be disabled');
+      logger.warn('[WARN] WebSocket module not found, real-time updates will be disabled');
       return null;
     }
 
-    console.warn('[WARN] Failed to load WebSocket module:', error);
+    logger.warn({ err: error }, '[WARN] Failed to load WebSocket module');
     return null;
   }
 }
@@ -74,7 +75,6 @@ async function loadWebSocketModule(): Promise<WebSocketModule | null> {
 import { setupVite, serveStatic } from './vite';
 import { apiRouter } from './routers/api';
 import { httpLogger, errorHandler, notFoundHandler, securityHeaders, generalRateLimit } from './middleware/index';
-import logger from './middleware/logger';
 import { runDataSeeder } from './lib/data-seeder.js';
 import { updateLiveFixtures } from './routers/fixtures.js';
 import { mlClient } from './lib/ml-client.js';
@@ -208,16 +208,23 @@ async function bootstrap() {
   return new Promise<void>((resolve) => {
     // Up to 10 retries if PORT not explicitly set
     const retries = explicitPort ? 0 : 10;
-    listen(currentPort, retries, async () => {
-      // Run data seeder after server starts
+    listen(currentPort, retries, () => {
+      // Resolve immediately after server binds to eliminate proxy error window
+      resolve();
+      
+      // Run background initialization tasks asynchronously (non-blocking)
       if (process.env.NODE_ENV !== 'test') {
-        try {
-          await runDataSeeder();
-          logger.info('[OK] Data seeding completed');
-        } catch (error) {
-          logger.error({ error }, '[ERROR] Data seeding failed');
-        }
+        // Data seeding (async, non-blocking)
+        (async () => {
+          try {
+            await runDataSeeder();
+            logger.info('[OK] Data seeding completed');
+          } catch (error) {
+            logger.error({ error }, '[ERROR] Data seeding failed');
+          }
+        })();
 
+        // Prediction sync scheduler (sync, fast)
         try {
           startPredictionSyncScheduler();
           logger.info('[SCHEDULE] Prediction sync scheduler started');
@@ -231,7 +238,15 @@ async function bootstrap() {
             await updateLiveFixtures();
             logger.debug('[OK] Live fixtures updated');
           } catch (error) {
-            logger.warn({ error }, '[WARN] Live fixtures update failed');
+            // Gracefully handle network/database errors without crashing
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            if (errorMessage.includes('ENOTFOUND') || errorMessage.includes('getaddrinfo')) {
+              logger.debug('[INFO] Network connectivity issue - skipping live fixture update');
+            } else if (errorMessage.includes('fetch failed')) {
+              logger.debug('[INFO] API unavailable - skipping live fixture update');
+            } else {
+              logger.warn({ error: errorMessage }, '[WARN] Live fixtures update failed');
+            }
           }
         }, 2 * 60 * 1000);
         logger.info('[SCHEDULE] Live fixture updates scheduled every 2 minutes');
@@ -255,7 +270,6 @@ async function bootstrap() {
           }, 10000); // Delay 10s to avoid startup congestion
         }
       }
-      resolve();
     });
   });
   } catch (error) {

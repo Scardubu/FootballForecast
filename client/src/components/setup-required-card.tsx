@@ -2,6 +2,7 @@ import React from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { AlertTriangle } from "lucide-react";
 
 export function SetupRequiredCard() {
   const [show, setShow] = React.useState(false);
@@ -35,7 +36,7 @@ export function SetupRequiredCard() {
     )}>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-amber-900">
-          <i className="fas fa-triangle-exclamation" aria-hidden="true"></i>
+          <AlertTriangle className="h-4 w-4" aria-hidden="true" />
           Setup Required
         </CardTitle>
       </CardHeader>

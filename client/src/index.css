@@ -1,23 +1,21 @@
-@import "@fontsource/inter/300.css";
-@import "@fontsource/inter/400.css";
-@import "@fontsource/inter/500.css";
-@import "@fontsource/inter/600.css";
-@import "@fontsource/inter/700.css";
-@import "@fontsource/inter/800.css";
-@import "@fontsource/jetbrains-mono/400.css";
-@import "@fontsource/jetbrains-mono/500.css";
-@import "@fontsource/jetbrains-mono/600.css";
-@import "@fortawesome/fontawesome-free/css/all.min.css";
+/* Optimized font loading with font-display: swap and latin-only subsets */
+/* Include all weights used in UI to prevent 404 errors */
+@import "@fontsource/inter/latin-400.css";
+@import "@fontsource/inter/latin-500.css";
+@import "@fontsource/inter/latin-600.css";
+@import "@fontsource/inter/latin-700.css";
+@import "@fontsource/inter/latin-400-italic.css";
+@import "@fontsource/jetbrains-mono/latin-400.css";
+@import "@fontsource/jetbrains-mono/latin-600.css";
+
+/* @fontsource provides font-face with appropriate font-display; no overrides needed */
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Smooth transitions for better UX */
-* {
-  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
-  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-  transition-duration: 200ms;
-}
+/* Avoid universal transitions to reduce layout/paint costs.
+   Apply transitions via utility classes/components instead. */
 
 :root {
   --background: hsl(0, 0%, 98%);
@@ -149,6 +147,12 @@
   .hover-lift:hover {
     transform: translateY(-2px);
     box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+  }
+  
+  /* Defer rendering offscreen content while reserving space to prevent CLS */
+  .cv-auto {
+    content-visibility: auto;
+    contain-intrinsic-size: 600px;
   }
   
   .focus-ring {

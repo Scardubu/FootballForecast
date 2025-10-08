@@ -2,8 +2,31 @@
   "name": "SabiScore - Football Forecast & Analytics",
   "short_name": "SabiScore",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#0b1220",
   "theme_color": "#0ea5e9",
-  "description": "AI-powered football predictions and analytics"
+  "description": "AI-powered football predictions and analytics",
+  "orientation": "any",
+  "categories": ["sports", "entertainment"],
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMAAAADAAQMAAAB0yP6gAAAABlBMVEUAAAD///+l2Z/dAAAAAnRSTlMA/1uRIrUAAAANSURBVBjTY2AAAAACAAHiIbwzAAAAAElFTkSuQmCC",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAgAAAAIABAMAAABJGBiWAAAABlBMVEUAAAD///+l2Z/dAAAAAnRSTlMA/1uRIrUAAAANSURBVBjTY2AAAAACAAHiIbwzAAAAAElFTkSuQmCC",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
 }

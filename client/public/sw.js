@@ -19,7 +19,11 @@ const API_CACHE_PATTERNS = [
   { pattern: /\/api\/leagues/, strategy: 'cache-first', ttl: 24 * 60 * 60 * 1000 }, // 24 hours
   { pattern: /\/api\/standings/, strategy: 'stale-while-revalidate', ttl: 60 * 60 * 1000 }, // 1 hour
   { pattern: /\/api\/fixtures\/live/, strategy: 'network-first', ttl: 30 * 1000 }, // 30 seconds
+  { pattern: /\/api\/predictions\/telemetry/, strategy: 'cache-first', ttl: 5 * 60 * 1000 }, // 5 minutes for telemetry
   { pattern: /\/api\/predictions/, strategy: 'stale-while-revalidate', ttl: 10 * 60 * 1000 }, // 10 minutes
+  { pattern: /\/api\/health/, strategy: 'network-first', ttl: 60 * 1000 }, // 1 minute
+  { pattern: /\/api\/stats/, strategy: 'cache-first', ttl: 30 * 60 * 1000 }, // 30 minutes
+  { pattern: /\/api\/telemetry/, strategy: 'cache-first', ttl: 5 * 60 * 1000 }, // 5 minutes
 ];
 
 // Install event - cache static assets
@@ -68,6 +72,12 @@ self.addEventListener('activate', (event) => {
 // Fetch event - handle requests with caching strategies
 self.addEventListener('fetch', (event) => {
   const { request } = event;
+
+  // Only handle http and https requests. Ignore others (e.g., chrome-extension://)
+  if (!request.url.startsWith('http')) {
+    return;
+  }
+
   const url = new URL(request.url);
 
   // Skip non-GET requests
@@ -107,8 +117,18 @@ async function handleApiRequest(request) {
   const cachePattern = API_CACHE_PATTERNS.find(p => p.pattern.test(url.pathname));
   
   if (!cachePattern) {
-    // No caching strategy defined, use network only
-    return fetch(request);
+    // No caching strategy defined, use network with error handling
+    try {
+      const response = await fetch(request);
+      // Don't cache 404s or errors
+      if (!response.ok && response.status === 404) {
+        console.warn('[SW] API 404:', url.pathname);
+      }
+      return response;
+    } catch (error) {
+      console.error('[SW] Network error for:', url.pathname);
+      throw error;
+    }
   }
 
   const cache = await caches.open(API_CACHE);
@@ -137,9 +157,13 @@ async function handleCacheFirst(request, cache, cachedResponse, ttl) {
 
   try {
     const networkResponse = await fetch(request);
-    if (networkResponse.ok) {
+    // Only cache successful responses
+    if (networkResponse.ok && networkResponse.status === 200) {
       const responseToCache = networkResponse.clone();
       await cache.put(request, addTimestamp(responseToCache));
+    } else if (networkResponse.status === 404) {
+      // Don't cache 404s, but return them
+      return networkResponse;
     }
     return networkResponse;
   } catch (error) {
@@ -155,7 +179,8 @@ async function handleCacheFirst(request, cache, cachedResponse, ttl) {
 async function handleNetworkFirst(request, cache, cachedResponse, ttl) {
   try {
     const networkResponse = await fetch(request);
-    if (networkResponse.ok) {
+    // Only cache successful responses
+    if (networkResponse.ok && networkResponse.status === 200) {
       const responseToCache = networkResponse.clone();
       await cache.put(request, addTimestamp(responseToCache));
     }
@@ -172,13 +197,15 @@ async function handleNetworkFirst(request, cache, cachedResponse, ttl) {
 async function handleStaleWhileRevalidate(request, cache, cachedResponse, ttl) {
   // Always try to update cache in background
   const networkUpdate = fetch(request).then(async (response) => {
-    if (response.ok) {
+    // Only cache successful responses
+    if (response.ok && response.status === 200) {
       const responseToCache = response.clone();
       await cache.put(request, addTimestamp(responseToCache));
     }
     return response;
-  }).catch(() => {
+  }).catch((error) => {
     // Ignore network errors in background update
+    console.debug('[SW] Background update failed:', request.url);
   });
 
   // Return cached response if available and not expired

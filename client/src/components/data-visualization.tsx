@@ -1,17 +1,60 @@
-import React, { useMemo, useCallback } from "react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import React, { useMemo, useCallback, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useQuery } from "@tanstack/react-query";
-import { AlertCircle, TrendingUp, Target, BarChart3 } from "lucide-react";
+import { AlertCircle, AlertTriangle, BarChart3, Info, Target, TrendingUp } from "lucide-react";
 import type { ScrapedData, TeamStats, Team } from "@shared/schema";
 import { useAuth } from "@/lib/auth-context";
 import { cn } from "@/lib/utils";
 import { useTelemetrySummary } from "@/hooks/use-telemetry";
 import type { TelemetryMetrics } from "@/lib/telemetry-metrics";
 import { formatCalibrationRate, formatLatency } from "@/lib/telemetry-metrics";
+import { useOnScreen } from "@/hooks/use-on-screen";
+import { LazyChart } from "@/components/lazy-chart";
+
+// Visibility-gated wrapper for charts to avoid loading recharts until in view
+function VisibilityGatedChart({
+  title,
+  height = 256,
+  data,
+  xAxisKey,
+  dataKey,
+  yAxisLabel,
+  barColor,
+}: {
+  title: string;
+  height?: number;
+  data: any[];
+  xAxisKey: string;
+  dataKey: string;
+  yAxisLabel?: string;
+  barColor?: string;
+}) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const visible = useOnScreen(containerRef, "150px");
+
+  return (
+    <div ref={containerRef} className="h-64 bg-background rounded-lg border border-border p-3">
+      <h4 className="font-medium mb-2">{title}</h4>
+      {visible ? (
+        <LazyChart
+          data={data}
+          xAxisKey={xAxisKey}
+          dataKey={dataKey}
+          yAxisLabel={yAxisLabel}
+          barColor={barColor}
+          height={height}
+        />
+      ) : (
+        <div className="h-full w-full flex items-center justify-center">
+          <Skeleton className="h-48 w-full" />
+        </div>
+      )}
+    </div>
+  );
+}
 
 // A component to display team performance stats in a card
 const TeamPerformanceCard = React.memo(function TeamPerformanceCard({
@@ -44,7 +87,7 @@ const TeamPerformanceCard = React.memo(function TeamPerformanceCard({
           <div className="flex items-center space-x-2">
             <Tooltip>
               <TooltipTrigger>
-                <i className="fas fa-info-circle text-muted-foreground cursor-help"></i>
+                <Info className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
               </TooltipTrigger>
               <TooltipContent>
                 <p>Goals scored and conceded over the last 10 matches</p>
@@ -82,26 +125,20 @@ const TeamPerformanceCard = React.memo(function TeamPerformanceCard({
             ))}
           </div>
 
-          {/* Overall Ratings Chart for Top 5 Teams */}
+          {/* Overall Ratings Chart for Top 5 Teams - gated by visibility and lazy-loaded */}
           {Array.isArray(teamStats) && teamStats.length > 0 && (
-            <div className="h-64 bg-background rounded-lg border border-border p-3">
-              <h4 className="font-medium mb-2">Overall Rating (Top 5)</h4>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={teamStats.slice(0, 5).map((s) => ({
-                    name: getTeamName(s.teamId ?? -1),
-                    rating: Number(s.overallRating ?? 0)
-                  }))}
-                  margin={{ top: 8, right: 16, left: 0, bottom: 8 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="name" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} interval={0} angle={-15} textAnchor="end" height={36} />
-                  <YAxis tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} domain={[0, 100]} />
-                  <RechartsTooltip contentStyle={{ background: 'hsl(var(--background))', border: '1px solid hsl(var(--border))' }} cursor={{ fill: 'hsl(var(--muted))' }} />
-                  <Bar dataKey="rating" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+            <VisibilityGatedChart
+              title="Overall Rating (Top 5)"
+              height={256}
+              data={teamStats.slice(0, 5).map((s) => ({
+                name: getTeamName(s.teamId ?? -1),
+                rating: Number(s.overallRating ?? 0)
+              }))}
+              xAxisKey="name"
+              dataKey="rating"
+              yAxisLabel="Rating"
+              barColor="hsl(var(--primary))"
+            />
           )}
         </div>
       </CardContent>
@@ -318,7 +355,7 @@ export const DataVisualization = React.memo(function DataVisualization() {
       <section className="mt-8">
         <h2 className="text-2xl font-bold text-foreground mb-6">Performance Analytics</h2>
         <div className="p-8 bg-destructive/10 rounded text-destructive text-center">
-          <i className="fas fa-exclamation-triangle text-3xl mb-2"></i>
+          <AlertTriangle className="mx-auto mb-2 h-12 w-12 text-destructive" aria-hidden="true" />
           <div className="font-semibold">Unable to load performance analytics</div>
           <div className="text-sm text-muted-foreground">{error instanceof Error ? error.message : 'Network error. Please try again later.'}</div>
         </div>

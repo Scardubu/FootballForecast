@@ -7,6 +7,7 @@ import {
   SheetClose
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
+import { Footprints, Menu } from "lucide-react";
 
 interface MobileMenuProps {
   links: Array<{
@@ -41,7 +42,7 @@ export function MobileMenu({ links }: MobileMenuProps) {
           aria-label="Open navigation menu"
           aria-expanded={open}
         >
-          <i className="fas fa-bars" aria-hidden="true"></i>
+          <Menu className="h-5 w-5" aria-hidden="true" />
           <span className="sr-only">Menu</span>
         </Button>
       </SheetTrigger>
@@ -49,7 +50,7 @@ export function MobileMenu({ links }: MobileMenuProps) {
         <div className="py-6">
           <div className="flex items-center space-x-3 mb-8">
             <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-              <i className="fas fa-futbol text-primary-foreground"></i>
+              <Footprints className="h-4 w-4 text-primary-foreground" aria-hidden="true" />
             </div>
             <span className="font-bold text-primary">SabiScore</span>
           </div>

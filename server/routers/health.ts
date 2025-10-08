@@ -32,13 +32,17 @@ healthRouter.get('/', asyncHandler(async (req, res) => {
     systemMonitor.recordError();
   }
 
-  // Check ML service
-  let mlStatus: 'healthy' | 'unhealthy' = 'healthy';
+  // Check ML service (optional - don't mark as degraded if unavailable)
+  let mlStatus: 'healthy' | 'unhealthy' | 'unavailable' = 'unavailable';
+  let mlAvailable = false;
   try {
     const mlHealth = await mlClient.healthCheck();
     mlStatus = mlHealth.status === 'healthy' ? 'healthy' : 'unhealthy';
+    mlAvailable = true;
   } catch (err) {
-    mlStatus = 'unhealthy';
+    // ML service is optional - use fallback predictions if unavailable
+    mlStatus = 'unavailable';
+    mlAvailable = false;
   }
   
   // Check hybrid data sources availability
@@ -72,8 +76,12 @@ healthRouter.get('/', asyncHandler(async (req, res) => {
   // Response time calculation
   const responseTime = Date.now() - startTime;
 
+  // System is healthy if DB is healthy and system health is good
+  // ML service is optional - don't mark as degraded if unavailable
+  const isHealthy = dbStatus === 'healthy' && systemHealth.overall === 'healthy';
+
   res.json({
-    status: dbStatus === 'healthy' && mlStatus === 'healthy' && systemHealth.overall === 'healthy' ? 'healthy' : 'degraded',
+    status: isHealthy ? 'healthy' : 'degraded',
     db: dbStatus,
     ml: mlStatus,
     systemHealth: {

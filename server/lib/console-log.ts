@@ -43,8 +43,8 @@ function stripEmojis(text: string): string {
     .replace(/📉/g, '[DOWN]')
     .replace(/🎲/g, '[RANDOM]')
     .replace(/🌍/g, '[GLOBAL]')
-    // Remove any remaining emojis
-    .replace(/[\u{1F300}-\u{1F9FF}]/gu, '[?]');
+    // Remove any remaining emojis (ES5-safe: match surrogate pairs)
+    .replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, '[?]');
 }
 
 /**

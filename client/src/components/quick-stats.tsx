@@ -2,6 +2,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTelemetrySummary } from "@/hooks/use-telemetry";
 import { formatCalibrationRate, formatLatency } from "@/lib/telemetry-metrics";
+import { Cpu, Target, Timer } from "lucide-react";
 
 // Quick Stats Component (Standalone)
 export function QuickStats() {
@@ -39,7 +40,7 @@ export function QuickStats() {
         ) : (
           <div className="space-y-4">
             <div className="flex items-center space-x-3 p-3 rounded-lg bg-white/55 dark:bg-slate-900/45 border border-white/20 dark:border-slate-800/35">
-              <i className="fas fa-microchip text-accent" aria-hidden />
+              <Cpu className="h-5 w-5 text-accent" aria-hidden="true" />
               <div>
                 <div className="text-sm font-medium" data-testid="insight-fixtures">Model Coverage</div>
                 <div className="text-xs text-muted-foreground">{totalFixturesLabel}</div>
@@ -47,7 +48,7 @@ export function QuickStats() {
             </div>
 
             <div className="flex items-center space-x-3 p-3 rounded-lg bg-white/55 dark:bg-slate-900/45 border border-white/20 dark:border-slate-800/35">
-              <i className="fas fa-bullseye text-success" aria-hidden />
+              <Target className="h-5 w-5 text-success" aria-hidden="true" />
               <div>
                 <div className="text-sm font-medium" data-testid="insight-calibration">Calibration Adoption</div>
                 <div className="text-xs text-muted-foreground">
@@ -57,7 +58,7 @@ export function QuickStats() {
             </div>
 
             <div className="flex items-center space-x-3 p-3 rounded-lg bg-white/55 dark:bg-slate-900/45 border border-white/20 dark:border-slate-800/35">
-              <i className="fas fa-stopwatch text-secondary" aria-hidden />
+              <Timer className="h-5 w-5 text-secondary" aria-hidden="true" />
               <div>
                 <div className="text-sm font-medium" data-testid="insight-latency">Latency Health</div>
                 <div className="text-xs text-muted-foreground">

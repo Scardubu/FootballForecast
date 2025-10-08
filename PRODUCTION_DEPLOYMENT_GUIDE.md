@@ -1,417 +1,430 @@
-# Production Deployment Guide
+# Production Deployment Guide - Real Data Only
 
-## ✅ Pre-Deployment Checklist
+## Overview
 
-### **1. Environment Configuration**
+This guide ensures your Football Forecast application uses **ONLY real data** in production from:
+- ✅ **ML Service** (Railway): Real XGBoost predictions
+- ✅ **API-Football**: Live match data
+- ✅ **Neon Database**: Persistent storage
+- ❌ **NO Mock/Fallback Data** in production
 
-#### **Get Neon Database Credentials**
-```powershell
-# Automatically fetch your Neon connection string
-npm run neon:credentials
-```
+---
 
-This will output your production-ready `DATABASE_URL`. Copy it to your deployment platform's environment variables.
+## Critical Production Settings
 
-#### **Required Environment Variables**
+### 1. Environment Variables (Netlify)
 
-**Database:**
+**REQUIRED Settings:**
+
 ```bash
-DATABASE_URL=postgresql://user:pass@ep-bitter-frost-addp6o5c.us-east-1.aws.neon.tech/neondb?sslmode=require
-NEON_API_KEY=napi_2lv04r1pas134aqnp9s2qhlygsmq1ha11nvtp61xojnzgk9jm1hhukc53w06pdea
-```
+# Node Environment - MUST be production
+NODE_ENV=production
 
-**Authentication:**
-```bash
-# Generate with: node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
-API_BEARER_TOKEN=GENERATE_UNIQUE_TOKEN
-SCRAPER_AUTH_TOKEN=GENERATE_UNIQUE_TOKEN
-SESSION_SECRET=GENERATE_64_CHAR_HEX
+# ML Service Configuration
+ML_SERVICE_URL=https://sabiscore-production.up.railway.app
+ML_FALLBACK_ENABLED=false  # CRITICAL: Must be false
+ML_SERVICE_TIMEOUT=30000
+ML_SERVICE_HEALTH_TIMEOUT=5000
 
-# Stack Auth (already configured)
+# Database
+DATABASE_URL=postgresql://[user]:[password]@[neon-endpoint]/[database]?sslmode=require
+
+# API-Football (Production Key)
+API_FOOTBALL_KEY=your_production_api_key_here
+API_FOOTBALL_HOST=v3.football.api-sports.io
+
+# Authentication Tokens (Generate strong tokens)
+API_BEARER_TOKEN=[generate_with: openssl rand -hex 32]
+SCRAPER_AUTH_TOKEN=[generate_with: openssl rand -hex 32]
+SESSION_SECRET=[generate_with: openssl rand -hex 32]
+
+# Stack Auth
 STACK_AUTH_PROJECT_ID=8b0648c2-f267-44c1-b4c2-a64eccb6f737
 STACK_AUTH_JWKS_URL=https://api.stack-auth.com/api/v1/projects/8b0648c2-f267-44c1-b4c2-a64eccb6f737/.well-known/jwks.json
-VITE_STACK_AUTH_PROJECT_ID=8b0648c2-f267-44c1-b4c2-a64eccb6f737
-```
 
-**API Keys:**
-```bash
-API_FOOTBALL_KEY=your_production_api_key
-API_FOOTBALL_HOST=v3.football.api-sports.io
-```
-
-**Application:**
-```bash
-NODE_ENV=production
-PORT=5000
+# Logging
 LOG_LEVEL=warn
 LOG_PRETTY=false
+
+# Features
+ENABLE_SCRAPING=false
+ENABLE_DEV_TOOLS=false
+ML_TRAIN_ON_STARTUP=false
+```
+
+### 2. Railway ML Service
+
+**Verify Deployment:**
+```bash
+curl https://sabiscore-production.up.railway.app/
+```
+
+**Expected Response:**
+```json
+{
+  "service": "SabiScore ML API",
+  "version": "1.0.0",
+  "status": "healthy",
+  "model_loaded": true
+}
+```
+
+### 3. Neon Database
+
+**Connection String Format:**
+```
+postgresql://[user]:[password]@ep-bitter-frost-addp6o5c.us-east-1.aws.neon.tech/neondb?sslmode=require
+```
+
+**Verify Connection:**
+```bash
+# Run migrations
+npm run db:push
+
+# Check connection
+curl https://sabiscore.netlify.app/api/health
 ```
 
 ---
 
-## 🚀 Deployment Steps
+## Production Behavior
 
-### **Option 1: Netlify (Recommended)**
+### ML Predictions
 
-#### **Step 1: Build the Application**
-```powershell
+**Production Mode (NODE_ENV=production):**
+- ✅ Uses ONLY real ML service predictions
+- ❌ NO fallback predictions
+- ❌ NO mock data
+- ✅ Returns 503 error if ML service unavailable
+
+**Code Enforcement:**
+```typescript
+// server/lib/ml-client.ts (line 38-40)
+// In production, fallback is ALWAYS disabled regardless of env var
+this.fallbackEnabled = isProduction ? false : (explicitlyEnabled || envFlag !== 'false');
+```
+
+**API Response on ML Failure:**
+```json
+{
+  "error": "ML service unavailable",
+  "message": "Prediction service is temporarily unavailable. Please try again later.",
+  "fixtureId": 12345
+}
+```
+
+### API-Football Data
+
+**Circuit Breaker Behavior:**
+- ✅ Retries failed requests (4 attempts with exponential backoff)
+- ✅ Opens circuit after 5 consecutive failures
+- ✅ Uses cached data when circuit is open
+- ❌ NO mock data generation in production
+
+**Fallback Strategy:**
+1. Try API-Football request
+2. Retry with exponential backoff
+3. If all retries fail → Use cached data (if available)
+4. If no cache → Return empty array with proper error handling
+
+---
+
+## Deployment Checklist
+
+### Pre-Deployment
+
+- [ ] **Verify ML Service is running**
+  ```bash
+  curl https://sabiscore-production.up.railway.app/
+  ```
+
+- [ ] **Test ML predictions**
+  ```bash
+  curl -X POST https://sabiscore-production.up.railway.app/predict \
+    -H "Content-Type: application/json" \
+    -d '{"home_team_id": 33, "away_team_id": 34}'
+  ```
+
+- [ ] **Verify Database connection**
+  ```bash
+  npm run db:push
+  ```
+
+- [ ] **Check API-Football quota**
+  - Login to https://www.api-football.com/
+  - Verify remaining requests
+  - Ensure production API key is active
+
+### Netlify Environment Setup
+
+**Step 1: Set Environment Variables**
+```bash
+# Using Netlify CLI
+netlify env:set NODE_ENV production
+netlify env:set ML_FALLBACK_ENABLED false
+netlify env:set ML_SERVICE_URL https://sabiscore-production.up.railway.app
+netlify env:set DATABASE_URL "postgresql://..."
+netlify env:set API_FOOTBALL_KEY "your_key"
+```
+
+**Step 2: Deploy**
+```bash
 npm run build
+netlify deploy --prod --dir=dist/public
 ```
 
-#### **Step 2: Set Environment Variables**
-```powershell
-# Run get-neon-credentials first
-npm run neon:credentials
+**Step 3: Verify**
+```bash
+# Check health endpoint
+curl https://sabiscore.netlify.app/api/health
 
-# Then set all variables
-netlify env:set DATABASE_URL "your-neon-connection-string"
-netlify env:set NEON_API_KEY "your-neon-api-key"
-netlify env:set STACK_AUTH_PROJECT_ID "8b0648c2-f267-44c1-b4c2-a64eccb6f737"
-netlify env:set VITE_STACK_AUTH_PROJECT_ID "8b0648c2-f267-44c1-b4c2-a64eccb6f737"
-netlify env:set API_FOOTBALL_KEY "your-api-key"
-netlify env:set NODE_ENV "production"
-
-# Generate and set secure tokens
-netlify env:set API_BEARER_TOKEN "$(node -e \"console.log(require('crypto').randomBytes(32).toString('base64url'))\")"
-netlify env:set SCRAPER_AUTH_TOKEN "$(node -e \"console.log(require('crypto').randomBytes(32).toString('base64url'))\")"
-netlify env:set SESSION_SECRET "$(node -e \"console.log(require('crypto').randomBytes(64).toString('hex'))\")"
+# Expected response
+{
+  "status": "healthy",
+  "timestamp": "2025-10-05T...",
+  "services": {
+    "database": "connected",
+    "ml_service": "healthy",
+    "api_football": "operational"
+  }
+}
 ```
 
-#### **Step 3: Deploy**
-```powershell
+### Post-Deployment Verification
+
+**1. Check ML Predictions**
+```bash
+# Get prediction for a fixture
+curl https://sabiscore.netlify.app/api/predictions/12345
+
+# Should return real ML prediction or 503 if service down
+```
+
+**2. Verify No Fallback Data**
+```bash
+# Check logs for fallback warnings
+netlify functions:log api
+
+# Should NOT see:
+# ❌ "Generating fallback prediction"
+# ❌ "Using fallback data"
+# ❌ "Mock data provider"
+```
+
+**3. Test Error Handling**
+```bash
+# Temporarily stop ML service on Railway
+# Request prediction - should get 503, NOT fallback data
+
+curl https://sabiscore.netlify.app/api/predictions/12345
+# Expected: {"error": "ML service unavailable", ...}
+# NOT: Mock prediction data
+```
+
+---
+
+## Monitoring & Alerts
+
+### Key Metrics to Monitor
+
+**ML Service Health:**
+- Response time < 5s
+- Success rate > 95%
+- Model loaded: true
+
+**API-Football:**
+- Circuit breaker state: CLOSED
+- Cache hit rate > 60%
+- API quota remaining > 10%
+
+**Database:**
+- Connection pool: healthy
+- Query response time < 100ms
+- No connection errors
+
+### Alert Thresholds
+
+```yaml
+ML_Service_Down:
+  condition: health_check_fails > 3
+  action: Send alert, return 503 to users
+  
+API_Football_Circuit_Open:
+  condition: circuit_state == OPEN
+  action: Use cached data, log warning
+  
+Database_Connection_Lost:
+  condition: connection_errors > 5
+  action: Fallback to memory storage, alert admin
+```
+
+---
+
+## Troubleshooting
+
+### Issue: "ML service unavailable" errors
+
+**Diagnosis:**
+```bash
+# Check ML service health
+curl https://sabiscore-production.up.railway.app/
+
+# Check Railway logs
+railway logs --service sabiscore-ml
+```
+
+**Solutions:**
+1. Verify Railway service is running
+2. Check ML_SERVICE_URL in Netlify env vars
+3. Verify network connectivity
+4. Check Railway service logs for errors
+
+### Issue: No predictions being generated
+
+**Diagnosis:**
+```bash
+# Check Netlify function logs
+netlify functions:log api
+
+# Verify ML_FALLBACK_ENABLED is false
+netlify env:get ML_FALLBACK_ENABLED
+```
+
+**Solutions:**
+1. Ensure NODE_ENV=production
+2. Verify ML_FALLBACK_ENABLED=false
+3. Check ML service is healthy
+4. Review prediction request logs
+
+### Issue: Still seeing mock/fallback data
+
+**Diagnosis:**
+```bash
+# Check environment
+netlify env:list | grep NODE_ENV
+netlify env:list | grep ML_FALLBACK
+
+# Check code deployment
+git log -1 --oneline
+```
+
+**Solutions:**
+1. Verify latest code is deployed
+2. Ensure NODE_ENV=production (not development)
+3. Clear Netlify build cache
+4. Redeploy with `netlify deploy --prod --clear-cache`
+
+---
+
+## Development vs Production
+
+### Development Mode
+- ✅ Fallback predictions allowed (for testing)
+- ✅ Mock data available
+- ✅ Offline mode supported
+- ✅ Enhanced logging
+
+### Production Mode
+- ❌ NO fallback predictions
+- ❌ NO mock data
+- ❌ NO offline mode fallbacks
+- ✅ Real data ONLY
+- ✅ 503 errors when services unavailable
+- ✅ Structured logging (JSON)
+
+---
+
+## Rollback Plan
+
+If production deployment fails:
+
+**Step 1: Immediate Rollback**
+```bash
+# Rollback to previous deployment
+netlify rollback
+```
+
+**Step 2: Verify Services**
+```bash
+# Check all services are healthy
+curl https://sabiscore.netlify.app/api/health
+```
+
+**Step 3: Review Logs**
+```bash
+# Check what went wrong
+netlify functions:log api --since 1h
+```
+
+**Step 4: Fix and Redeploy**
+```bash
+# Fix issues locally
+npm run build
+npm run test
+
+# Deploy again
 netlify deploy --prod
 ```
 
 ---
 
-### **Option 2: Render**
+## Success Criteria
 
-#### **Step 1: Create Web Service**
-1. Go to Render Dashboard
-2. Click "New" → "Web Service"
-3. Connect your GitHub repository
+### ✅ Production is Ready When:
 
-#### **Step 2: Configure Build Settings**
-- **Build Command:** `npm run build:client`
-- **Start Command:** `npm start`
-- **Environment:** Node
+1. **ML Service**
+   - [ ] Railway service is healthy
+   - [ ] Predictions return real data
+   - [ ] No fallback predictions generated
+   - [ ] 503 errors when service down
 
-#### **Step 3: Add Environment Variables**
-Go to Environment tab and add all variables from `.env.production.example`
+2. **API-Football**
+   - [ ] Live data fetching works
+   - [ ] Circuit breaker functioning
+   - [ ] Cached data used when API down
+   - [ ] No mock data generation
 
-#### **Step 4: Deploy**
-Render will automatically deploy on git push.
+3. **Database**
+   - [ ] Neon connection stable
+   - [ ] Migrations applied
+   - [ ] Data persisting correctly
 
----
-
-### **Option 3: Vercel**
-
-#### **Step 1: Install Vercel CLI**
-```powershell
-npm i -g vercel
-```
-
-#### **Step 2: Deploy**
-```powershell
-vercel --prod
-```
-
-Follow prompts and add environment variables when requested.
+4. **Monitoring**
+   - [ ] Health endpoint returns accurate status
+   - [ ] Logs show no fallback usage
+   - [ ] Error rates < 1%
+   - [ ] Response times < 3s
 
 ---
 
-## 🔧 Post-Deployment Configuration
+## Quick Reference
 
-### **1. Database Migration**
-After deployment, push your schema to Neon:
-
-```powershell
-# Set DATABASE_URL to production value temporarily
-$env:DATABASE_URL="your-production-neon-url"
-npm run db:push
-```
-
-### **2. Verify Deployment**
-
-#### **Health Check**
+### Environment Check
 ```bash
-curl https://your-app.com/api/health
+# Verify production settings
+netlify env:list | grep -E "(NODE_ENV|ML_FALLBACK|ML_SERVICE_URL)"
 ```
 
-Expected response:
-```json
-{
-  "status": "healthy",
-  "timestamp": "2025-10-03T23:00:00.000Z",
-  "environment": "production",
-  "version": "1.0.0",
-  "database": {
-    "connected": true,
-    "provider": "neon"
-  }
-}
-```
-
-#### **Auth Check**
+### Health Check
 ```bash
-curl https://your-app.com/api/auth/status
+# All services
+curl https://sabiscore.netlify.app/api/health | jq
 ```
 
-Expected (unauthenticated):
-```json
-{
-  "authenticated": false
-}
-```
-
-#### **Stack Auth Check**
+### Logs
 ```bash
-curl -H "Authorization: Bearer YOUR_JWT" \
-  https://your-app.com/api/auth/status
+# Real-time logs
+netlify functions:log api --stream
 ```
 
-Expected (authenticated):
-```json
-{
-  "authenticated": true,
-  "user": {
-    "id": "user-id",
-    "email": "user@example.com"
-  }
-}
-```
-
----
-
-## 🔒 Security Checklist
-
-### **Before Production**
-- [ ] All `API_BEARER_TOKEN` values are unique and strong (32+ chars)
-- [ ] `SESSION_SECRET` is cryptographically random (64+ chars)
-- [ ] `NODE_ENV=production` is set
-- [ ] `LOG_LEVEL=warn` or `error` (not `debug`)
-- [ ] `SESSION_SECURE=true` for HTTPS
-- [ ] Database credentials are production-specific
-- [ ] No development tokens or keys in production
-- [ ] CORS origins are properly configured
-- [ ] Rate limiting is enabled
-- [ ] HTTPS/SSL is enforced
-
-### **Post-Deployment**
-- [ ] Test authentication flow end-to-end
-- [ ] Verify database connectivity
-- [ ] Check error logging and monitoring
-- [ ] Test API rate limits
-- [ ] Verify predictions endpoint
-- [ ] Check betting insights functionality
-- [ ] Test offline mode graceful degradation
-
----
-
-## 📊 Monitoring & Observability
-
-### **Built-in Endpoints**
-
-#### **Health Check**
-```
-GET /api/health
-```
-Returns system health status, database connectivity, and version info.
-
-#### **Performance Metrics**
-```
-GET /api/telemetry/performance
-```
-Returns performance metrics for API endpoints.
-
-#### **Error Statistics**
-```
-GET /api/telemetry/errors
-```
-Returns error rates and categories.
-
-### **Recommended External Monitoring**
-
-#### **Sentry (Error Tracking)**
+### Deployment
 ```bash
-# Add to environment
-SENTRY_DSN=your_sentry_dsn_here
-```
-
-#### **Application Insights (Azure)**
-```bash
-APPLICATIONINSIGHTS_CONNECTION_STRING=your_connection_string
+# Full deployment
+npm run build && netlify deploy --prod --dir=dist/public
 ```
 
 ---
 
-## 🐛 Troubleshooting
-
-### **Issue: Database Connection Failed**
-
-**Symptoms:**
-- 500 errors on all API endpoints
-- Health check shows `database.connected: false`
-
-**Solutions:**
-1. Verify `DATABASE_URL` format includes `?sslmode=require`
-2. Check Neon project is not paused (free tier auto-pauses)
-3. Test connection manually:
-   ```powershell
-   psql "$env:DATABASE_URL"
-   ```
-4. Run `npm run neon:credentials` to get fresh connection string
-
----
-
-### **Issue: Authentication Not Working**
-
-**Symptoms:**
-- 401 errors on protected endpoints
-- JWT verification fails
-
-**Solutions:**
-1. Verify `STACK_AUTH_PROJECT_ID` matches frontend and backend
-2. Check JWKS URL is accessible:
-   ```bash
-   curl https://api.stack-auth.com/api/v1/projects/8b0648c2-f267-44c1-b4c2-a64eccb6f737/.well-known/jwks.json
-   ```
-3. Ensure JWT is not expired (check `exp` claim)
-4. For legacy tokens, verify `API_BEARER_TOKEN` matches
-
----
-
-### **Issue: High Response Times**
-
-**Symptoms:**
-- Slow API responses
-- Timeouts
-
-**Solutions:**
-1. Enable caching in production:
-   ```bash
-   ENABLE_CACHE=true
-   CACHE_TTL=3600
-   ```
-2. Use Neon connection pooling (included by default)
-3. Check Neon compute tier (upgrade if needed)
-4. Monitor query performance in Neon dashboard
-
----
-
-## 📈 Performance Optimization
-
-### **Client-Side Caching**
-Environment variables for production:
-```bash
-VITE_CACHE_ENABLED=true
-VITE_CACHE_TTL=3600000  # 1 hour
-VITE_API_TIMEOUT=10000  # 10 seconds
-```
-
-### **Server-Side Optimizations**
-- **Connection Pooling:** Enabled by default with Neon
-- **Query Caching:** Use `ENABLE_CACHE=true`
-- **Rate Limiting:** Configured per endpoint
-- **Compression:** Enabled in production mode
-
----
-
-## 🔄 Continuous Deployment
-
-### **GitHub Actions (Example)**
-```yaml
-name: Deploy to Production
-on:
-  push:
-    branches: [main]
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-      
-      - name: Install dependencies
-        run: npm ci
-      
-      - name: Build
-        run: npm run build
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          STACK_AUTH_PROJECT_ID: ${{ secrets.STACK_AUTH_PROJECT_ID }}
-          API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
-      
-      - name: Deploy to Netlify
-        run: netlify deploy --prod
-        env:
-          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
-```
-
----
-
-## 📞 Support & Resources
-
-### **Your Project**
-- **Email:** scardubu@gmail.com
-- **Stack Auth Project:** `8b0648c2-f267-44c1-b4c2-a64eccb6f737`
-- **Neon Endpoint:** `ep-bitter-frost-addp6o5c.us-east-1.aws.neon.tech`
-
-### **Dashboards**
-- **Neon:** https://console.neon.tech
-- **Stack Auth:** https://app.stack-auth.com/projects/8b0648c2-f267-44c1-b4c2-a64eccb6f737
-- **Netlify:** https://app.netlify.com
-
-### **Documentation**
-- **Migration Guide:** `NEON_STACK_AUTH_MIGRATION.md`
-- **Quick Start:** `QUICK_START_NEON_STACK.md`
-- **Betting Insights:** `BETTING_INSIGHTS_IMPLEMENTATION.md`
-
----
-
-## ✅ Production Readiness Checklist
-
-### **Infrastructure**
-- [x] Neon.tech database configured
-- [x] Stack Auth JWT verification integrated
-- [x] Hybrid auth middleware (backward compatible)
-- [x] Environment configuration centralized
-- [x] Automated credential retrieval
-
-### **Security**
-- [x] JWT-based authentication
-- [x] Secure session management
-- [x] Rate limiting enabled
-- [x] HTTPS enforced in production
-- [x] Secure token generation
-
-### **Performance**
-- [x] Client-side caching implemented
-- [x] Server-side connection pooling
-- [x] Optimized bundle sizes
-- [x] Lazy loading for components
-- [x] Performance monitoring
-
-### **Reliability**
-- [x] Error handling middleware
-- [x] Graceful degradation
-- [x] Health check endpoints
-- [x] Database reconnection logic
-- [x] Offline mode support
-
-### **Observability**
-- [x] Structured logging
-- [x] Performance metrics
-- [x] Error tracking
-- [x] Health monitoring
-- [x] Diagnostic endpoints
-
----
-
-**Status:** ✅ **PRODUCTION READY**
-
-Your Football Forecast application is now fully configured and ready for production deployment!
+**Last Updated:** 2025-10-05  
+**Status:** ✅ Production Ready  
+**Real Data Only:** ✅ Enforced

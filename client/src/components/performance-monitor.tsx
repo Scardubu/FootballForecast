@@ -91,26 +91,24 @@ export function PerformanceMonitor() {
       });
     }
 
-    // Monitor for performance issues (production only)
+    // Monitor for performance issues (production only, critical issues only)
     const observer = new PerformanceObserver((list) => {
       const entries = list.getEntries();
       entries.forEach((entry) => {
-        // Log slow resources (only critical ones > 3s)
-        if (entry.entryType === 'resource' && entry.duration > 3000) {
-          console.warn('🐌 Slow resource detected:', {
-            name: entry.name,
-            duration: Math.round(entry.duration),
-            size: (entry as PerformanceResourceTiming).transferSize,
+        // Only log extremely slow resources (> 5s) to reduce noise
+        if (entry.entryType === 'resource' && entry.duration > 5000) {
+          console.warn('🐌 Critical slow resource:', {
+            name: entry.name.split('/').pop(), // Only filename
+            duration: Math.round(entry.duration) + 'ms',
           });
         }
         
-        // Log significant layout shifts only (CLS > 0.1)
+        // Only log severe layout shifts (CLS > 0.25) to reduce noise
         if (entry.entryType === 'layout-shift' && !(entry as any).hadRecentInput) {
           const value = (entry as any).value;
-          if (value > 0.1) {
-            console.warn('📐 Significant layout shift detected:', {
-              value,
-              sources: (entry as any).sources?.map((s: any) => s.node),
+          if (value > 0.25) {
+            console.warn('📐 Critical layout shift:', {
+              value: value.toFixed(3),
             });
           }
         }
@@ -121,7 +119,7 @@ export function PerformanceMonitor() {
     try {
       observer.observe({ entryTypes: ['resource', 'layout-shift'] });
     } catch (error) {
-      console.warn('Performance observer not supported:', error);
+      // Silently fail if not supported
     }
 
     return () => {

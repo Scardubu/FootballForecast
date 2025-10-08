@@ -31,6 +31,23 @@ apiRouter.use('/ml', mlRouter);
 apiRouter.use('/diagnostics', diagnosticsRouter);
 apiRouter.use('/telemetry', telemetryRouter);
 
+// WebSocket availability endpoint
+apiRouter.get('/websocket/status', (_req, res) => {
+  const isDevelopment = process.env.NODE_ENV === 'development';
+  const isNetlify = process.env.NETLIFY === 'true';
+  
+  res.json({
+    available: !isDevelopment && !isNetlify,
+    reason: isDevelopment 
+      ? 'WebSocket disabled in development (Vite HMR priority)'
+      : isNetlify
+      ? 'WebSocket not supported on Netlify'
+      : 'WebSocket available',
+    fallback: 'HTTP polling',
+    endpoint: isDevelopment || isNetlify ? null : '/ws'
+  });
+});
+
 // Stats endpoint for dashboard
 apiRouter.get('/stats', async (_req, res) => {
   try {

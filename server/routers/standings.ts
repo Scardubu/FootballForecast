@@ -68,7 +68,9 @@ async function updateStandings(leagueId: number, season: number) {
       return false;
     } else {
       console.log(`⚠️ No standings data for league ${leagueId}, API might be rate limited`);
-      return true; // Indicate fallback needed
+      // In production, do not use fallback - return false to skip seeding
+      const isProduction = process.env.NODE_ENV === 'production';
+      return !isProduction; // Only indicate fallback needed in dev/test
     }
   } catch (error) {
     console.error(`Error fetching standings for league ${leagueId}:`, error);
@@ -76,8 +78,14 @@ async function updateStandings(leagueId: number, season: number) {
   }
 }
 
-// Sample data seeding function for when API limits are reached
+// Sample data seeding function for when API limits are reached (dev/test only)
 async function seedSampleStandingsData(leagueId: number) {
+  // In production, do not seed sample data
+  const isProduction = process.env.NODE_ENV === 'production';
+  if (isProduction) {
+    console.warn(`Production mode: skipping sample standings seed for league ${leagueId}`);
+    return;
+  }
   const sampleTeams = {
     39: [ // Premier League
       { id: 40, name: 'Liverpool', logo: 'https://media-4.api-sports.io/football/teams/40.png', country: 'England' },

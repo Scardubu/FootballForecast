@@ -45,6 +45,8 @@ describe('Header', () => {
     });
 
     (global.fetch as any).mockResolvedValue({
+      ok: true,
+      status: 200,
       json: () => Promise.resolve([
         { id: '39', name: 'Premier League' },
         { id: '140', name: 'La Liga' },
@@ -63,10 +65,13 @@ describe('Header', () => {
 
     render(<Header />, { wrapper: createWrapper() });
 
-    expect(screen.getByText('SabiScore')).toBeInTheDocument();
-    expect(screen.getByText('Analytics')).toBeInTheDocument();
+    expect(screen.getAllByText('SabiScore')[0]).toBeInTheDocument();
+    expect(screen.getAllByText('Analytics')[0]).toBeInTheDocument();
     expect(screen.getByTestId('nav-dashboard')).toBeInTheDocument();
+    expect(screen.getByTestId('nav-betting-insights')).toBeInTheDocument();
     expect(screen.getByTestId('nav-predictions')).toBeInTheDocument();
+    expect(screen.getByTestId('nav-statistics')).toBeInTheDocument();
+    expect(screen.getByTestId('nav-telemetry')).toBeInTheDocument();
     expect(screen.getByTestId('live-indicator')).toBeInTheDocument();
   });
 

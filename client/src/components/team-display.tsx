@@ -104,6 +104,7 @@ export function TeamDisplay({
             className={cn(logoSize, "rounded-full object-cover")}
             onError={() => setLogoError(true)}
             loading="lazy"
+            decoding="async"
           />
         ) : (
           renderFallbackLogo()
@@ -121,6 +122,8 @@ export function TeamDisplay({
               "absolute -bottom-1 -right-1 rounded-sm border border-white shadow-sm object-cover"
             )}
             data-testid={`${testId ? testId + '-' : ''}flag`}
+            loading="lazy"
+            decoding="async"
           />
         )}
       </div>

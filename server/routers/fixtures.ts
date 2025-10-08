@@ -36,9 +36,16 @@ async function generateMLPredictions(fixtureId: number, homeTeamId: number, away
     console.warn('ML model unavailable, falling back to statistical prediction.', e);
   }
 
-  // Fallback: simple statistical prediction if ML fails
+  // Fallback: simple statistical prediction if ML fails (dev/test only)
   if (!mlResult) {
-    // Example: weighted average of recent form, goals, and H2H
+    // In production, do not generate fallback predictions
+    const isProduction = process.env.NODE_ENV === 'production';
+    if (isProduction) {
+      console.warn(`Production mode: ML prediction unavailable for fixture ${fixtureId}, skipping fallback`);
+      return null;
+    }
+    
+    // Example: weighted average of recent form, goals, and H2H (dev/test only)
     // Use basic form calculation since formRating may not exist
     const homeForm = 0.5; // Default neutral form
     const awayForm = 0.5; // Default neutral form  
@@ -89,64 +96,86 @@ export async function updateLiveFixtures() {
     
     if (data.response && Array.isArray(data.response)) {
       for (const match of data.response) {
-        const fixture = {
-          id: match.fixture.id,
-          referee: match.fixture.referee,
-          timezone: match.fixture.timezone,
-          date: new Date(match.fixture.date),
-          timestamp: match.fixture.timestamp,
-          status: match.fixture.status.long,
-          elapsed: match.fixture.status.elapsed ?? null,
-          round: match.league.round,
-          homeTeamId: match.teams.home.id,
-          awayTeamId: match.teams.away.id,
-          leagueId: match.league.id,
-          venue: match.fixture.venue?.name,
-          homeScore: match.goals.home,
-          awayScore: match.goals.away,
-          halftimeHomeScore: match.score?.halftime?.home ?? null,
-          halftimeAwayScore: match.score?.halftime?.away ?? null,
-        };
-        
-        // Update league first
-        await storage.updateLeague({
-          id: match.league.id,
-          name: match.league.name,
-          country: match.league.country,
-          logo: match.league.logo,
-          flag: match.league.flag,
-          season: match.league.season,
-          type: match.league.type || 'League'
-        });
-        
-        // Update teams with enhanced data
-        const homeTeam = {
-          id: match.teams.home.id,
-          name: match.teams.home.name,
-          logo: match.teams.home.logo,
-          country: match.league.country,
-          national: false,
-          code: match.teams.home.code || null,
-          founded: match.teams.home.founded || null
-        };
-        
-        const awayTeam = {
-          id: match.teams.away.id,
-          name: match.teams.away.name,
-          logo: match.teams.away.logo,
-          country: match.league.country,
-          national: false,
-          code: match.teams.away.code || null,
-          founded: match.teams.away.founded || null
-        };
-        
-        await Promise.all([
-          storage.updateTeam(homeTeam),
-          storage.updateTeam(awayTeam)
-        ]);
-        
-        // Update fixture after teams/league exist
-        await storage.updateFixture(fixture);
+        try {
+          const fixture = {
+            id: match.fixture.id,
+            referee: match.fixture.referee,
+            timezone: match.fixture.timezone,
+            date: new Date(match.fixture.date),
+            timestamp: match.fixture.timestamp,
+            status: match.fixture.status.long,
+            elapsed: match.fixture.status.elapsed ?? null,
+            round: match.league.round,
+            homeTeamId: match.teams.home.id,
+            awayTeamId: match.teams.away.id,
+            leagueId: match.league.id,
+            venue: match.fixture.venue?.name,
+            homeScore: match.goals.home,
+            awayScore: match.goals.away,
+            halftimeHomeScore: match.score?.halftime?.home ?? null,
+            halftimeAwayScore: match.score?.halftime?.away ?? null,
+          };
+          
+          // Update league first (with error handling)
+          try {
+            await storage.updateLeague({
+              id: match.league.id,
+              name: match.league.name,
+              country: match.league.country,
+              logo: match.league.logo,
+              flag: match.league.flag,
+              season: match.league.season,
+              type: match.league.type || 'League'
+            });
+          } catch (dbError) {
+            // Skip this match if database is unavailable
+            console.debug(`[INFO] Skipping league update for ${match.league.name} - database unavailable`);
+            continue;
+          }
+          
+          // Update teams with enhanced data
+          const homeTeam = {
+            id: match.teams.home.id,
+            name: match.teams.home.name,
+            logo: match.teams.home.logo,
+            country: match.league.country,
+            national: false,
+            code: match.teams.home.code || null,
+            founded: match.teams.home.founded || null
+          };
+          
+          const awayTeam = {
+            id: match.teams.away.id,
+            name: match.teams.away.name,
+            logo: match.teams.away.logo,
+            country: match.league.country,
+            national: false,
+            code: match.teams.away.code || null,
+            founded: match.teams.away.founded || null
+          };
+          
+          try {
+            await Promise.all([
+              storage.updateTeam(homeTeam),
+              storage.updateTeam(awayTeam)
+            ]);
+          } catch (dbError) {
+            console.debug(`[INFO] Skipping team updates - database unavailable`);
+            continue;
+          }
+          
+          // Update fixture after teams/league exist
+          try {
+            await storage.updateFixture(fixture);
+          } catch (dbError) {
+            console.debug(`[INFO] Skipping fixture update - database unavailable`);
+            continue;
+          }
+        } catch (matchError) {
+          // Continue processing other matches even if one fails
+          console.debug(`[INFO] Skipping match ${match.fixture.id} due to error`);
+          continue;
+        }
         
         // Generate ML predictions for completed or upcoming matches
         if (match.fixture.status.short === "FT" || match.fixture.status.short === "NS") {

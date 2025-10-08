@@ -10,6 +10,7 @@ import { MockDataProvider } from "@/lib/mock-data-provider";
 import type { Standing, Team } from "@shared/schema";
 
 export function LeagueStandings() {
+  const IS_DEV = import.meta.env.DEV === true;
   const { selectedLeague, selectedSeason } = useLeagueStore();
   
   const { data: standings, loading: isLoadingStandings, error: standingsError } = useApi<Standing[]>(`/api/standings/${selectedLeague}?season=${selectedSeason}`, { retry: true });
@@ -21,7 +22,7 @@ export function LeagueStandings() {
     if (team) return team;
     
     // If in offline mode and no team found, try mock data
-    if (MockDataProvider.isOfflineMode()) {
+    if (IS_DEV && MockDataProvider.isOfflineMode()) {
       return MockDataProvider.getTeamById(teamId);
     }
     
@@ -55,7 +56,7 @@ export function LeagueStandings() {
   }
 
   return (
-    <Card data-testid="league-standings" className="glass-effect hover-lift smooth-transition">
+    <Card data-testid="league-standings" className="glass-effect hover-lift smooth-transition cv-auto">
       <CardContent className="p-6">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">

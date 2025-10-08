@@ -1,6 +1,7 @@
 import React from "react";
 import { Header } from "@/components/header";
 import { SkipToMain } from "@/components/accessibility";
+import { Facebook, Footprints, Instagram, Twitter } from "lucide-react";
 
 export interface AppLayoutProps {
   children: React.ReactNode;
@@ -20,7 +21,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             <div>
               <div className="flex items-center space-x-2 mb-4">
                 <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-                  <i className="fas fa-futbol text-primary-foreground"></i>
+                  <Footprints className="h-4 w-4 text-primary-foreground" aria-hidden="true" />
                 </div>
                 <span className="font-bold text-primary">SabiScore Analytics</span>
               </div>
@@ -52,14 +53,14 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             <div>
               <h4 className="font-semibold text-foreground mb-3">Connect</h4>
               <div className="flex space-x-4">
-                <a href="#" className="text-muted-foreground hover:text-primary">
-                  <i className="fab fa-twitter"></i>
+                <a href="#" className="text-muted-foreground hover:text-primary" aria-label="Twitter">
+                  <Twitter className="h-5 w-5" aria-hidden="true" />
                 </a>
-                <a href="#" className="text-muted-foreground hover:text-primary">
-                  <i className="fab fa-facebook"></i>
+                <a href="#" className="text-muted-foreground hover:text-primary" aria-label="Facebook">
+                  <Facebook className="h-5 w-5" aria-hidden="true" />
                 </a>
-                <a href="#" className="text-muted-foreground hover:text-primary">
-                  <i className="fab fa-instagram"></i>
+                <a href="#" className="text-muted-foreground hover:text-primary" aria-label="Instagram">
+                  <Instagram className="h-5 w-5" aria-hidden="true" />
                 </a>
               </div>
             </div>

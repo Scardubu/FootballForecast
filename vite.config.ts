@@ -25,24 +25,73 @@ export default defineConfig({
     rollupOptions: {
       input: path.resolve(__dirname, "client/index.html"),
       output: {
-        // Optimize chunk splitting
-        manualChunks: {
-          'vendor-react': ['react', 'react-dom', 'wouter'],
-          'vendor-ui': ['@radix-ui/react-select', '@radix-ui/react-dialog', '@radix-ui/react-tooltip'],
-          'vendor-charts': ['recharts'],
-          'vendor-query': ['@tanstack/react-query']
-        }
+        // Critical fix: Bundle ALL React-dependent code together
+        // to prevent load order issues and circular dependency errors
+        manualChunks: (id) => {
+          if (id.includes('node_modules')) {
+            // CRITICAL: Bundle recharts WITH React to avoid circular dependency errors
+            // Recharts has internal circular dependencies that break when code-split separately
+            // "Cannot access 'A' before initialization" error occurs when recharts is isolated
+            if (id.includes('react') || 
+                id.includes('scheduler') ||
+                id.includes('recharts') ||
+                id.includes('react-smooth') ||
+                id.includes('recharts-scale') ||
+                id.includes('victory-vendor') ||
+                id.includes('@tanstack/react-query') ||
+                id.includes('wouter') ||
+                id.includes('zustand') ||
+                id.includes('@radix-ui') ||
+                id.includes('lucide-react') ||
+                id.includes('framer-motion') ||
+                id.includes('cmdk') ||
+                id.includes('vaul') ||
+                id.includes('embla-carousel') ||
+                id.includes('react-hook-form') ||
+                id.includes('react-day-picker') ||
+                id.includes('axios') ||
+                id.includes('@hookform/') ||
+                id.includes('react-resizable-panels')) {
+              return 'vendor-react';
+            }
+            
+            // Only pure utilities that NEVER import React
+            if (id.includes('date-fns') ||
+                id.includes('clsx') ||
+                id.includes('tailwind-merge') ||
+                id.includes('class-variance-authority') ||
+                id.includes('zod')) {
+              return 'vendor-utils';
+            }
+            
+            // Let Vite handle remaining dependencies automatically
+          }
+        },
+        // Optimize asset file names
+        chunkFileNames: 'assets/[name]-[hash].js',
+        entryFileNames: 'assets/[name]-[hash].js',
+        assetFileNames: 'assets/[name]-[hash].[ext]'
       }
     },
     // Enable minification optimizations
     minify: 'esbuild',
     target: 'es2020',
+    // Chunk size warnings
+    chunkSizeWarningLimit: 1000,
     // Optimize dependencies
     commonjsOptions: {
       include: [/node_modules/],
       extensions: ['.js', '.cjs'],
       transformMixedEsModules: true
     },
+    // Enable source maps for production debugging (optional)
+    sourcemap: false,
+    // CSS code splitting
+    cssCodeSplit: true,
+  },
+  optimizeDeps: {
+    include: ['react', 'react-dom', 'react/jsx-runtime'],
+    exclude: [],
   },
   server: {
     fs: {
@@ -60,7 +109,7 @@ export default defineConfig({
     },
     proxy: {
       '/api': {
-        target: 'http://localhost:5000',
+        target: 'http://127.0.0.1:5000',
         changeOrigin: true,
       },
     },

@@ -38,6 +38,12 @@ export class DatabaseStorage implements IStorage {
       keepAliveInitialDelayMillis: 10_000
     });
 
+    // Add error handler to prevent uncaught exceptions
+    pool.on('error', (err) => {
+      console.error('[DB] Unexpected database pool error:', err.message);
+      // Don't exit process, just log the error
+    });
+
     try {
       const client = await pool.connect();
       try {
