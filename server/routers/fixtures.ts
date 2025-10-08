@@ -96,6 +96,27 @@ export async function updateLiveFixtures() {
     
     if (data.response && Array.isArray(data.response)) {
       for (const match of data.response) {
+        // Declare team objects at loop scope so they're accessible throughout
+        const homeTeam = {
+          id: match.teams.home.id,
+          name: match.teams.home.name,
+          logo: match.teams.home.logo,
+          country: match.league.country,
+          national: false,
+          code: match.teams.home.code || null,
+          founded: match.teams.home.founded || null
+        };
+        
+        const awayTeam = {
+          id: match.teams.away.id,
+          name: match.teams.away.name,
+          logo: match.teams.away.logo,
+          country: match.league.country,
+          national: false,
+          code: match.teams.away.code || null,
+          founded: match.teams.away.founded || null
+        };
+        
         try {
           const fixture = {
             id: match.fixture.id,
@@ -134,26 +155,6 @@ export async function updateLiveFixtures() {
           }
           
           // Update teams with enhanced data
-          const homeTeam = {
-            id: match.teams.home.id,
-            name: match.teams.home.name,
-            logo: match.teams.home.logo,
-            country: match.league.country,
-            national: false,
-            code: match.teams.home.code || null,
-            founded: match.teams.home.founded || null
-          };
-          
-          const awayTeam = {
-            id: match.teams.away.id,
-            name: match.teams.away.name,
-            logo: match.teams.away.logo,
-            country: match.league.country,
-            national: false,
-            code: match.teams.away.code || null,
-            founded: match.teams.away.founded || null
-          };
-          
           try {
             await Promise.all([
               storage.updateTeam(homeTeam),
@@ -179,18 +180,26 @@ export async function updateLiveFixtures() {
         
         // Generate ML predictions for completed or upcoming matches
         if (match.fixture.status.short === "FT" || match.fixture.status.short === "NS") {
-          await generateMLPredictions(match.fixture.id, homeTeam.id, awayTeam.id);
+          try {
+            await generateMLPredictions(match.fixture.id, homeTeam.id, awayTeam.id);
+          } catch (predError) {
+            console.debug(`[INFO] Failed to generate ML predictions for fixture ${match.fixture.id}`);
+          }
         }
         
         // Schedule scraping for live or upcoming fixtures
         if (match.fixture.status.short === "LIVE" || match.fixture.status.short === "NS") {
-          const priority = match.fixture.status.short === "LIVE" ? 8 : 6; // Higher priority for live matches
-          await scrapingScheduler.scheduleMatchDataScraping(
-            match.fixture.id,
-            homeTeam.name,
-            awayTeam.name,
-            priority
-          );
+          try {
+            const priority = match.fixture.status.short === "LIVE" ? 8 : 6; // Higher priority for live matches
+            await scrapingScheduler.scheduleMatchDataScraping(
+              match.fixture.id,
+              homeTeam.name,
+              awayTeam.name,
+              priority
+            );
+          } catch (scrapingError) {
+            console.debug(`[INFO] Failed to schedule scraping for fixture ${match.fixture.id}`);
+          }
         }
       }
     }
